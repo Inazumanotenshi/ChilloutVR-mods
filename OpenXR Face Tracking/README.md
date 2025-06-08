@@ -11,7 +11,7 @@ It will also allow using newer VRs that will use OpenXR Tracking for face and ey
 
 - **Default setup:** just drag and drop the mod into the mods folder and start ChilloutVR, activate the mod with a toggle and let the magic happen
 - **More detailed setup:** if you want to have specific blendshapes to run while using eye or face tracking you can put the mod into your Unity project and add the script to your avatar to add something like ear movement when raising an eyebrow
-- **enable or disable different tracking:** to avoid conflicts with different with different tracking systems you can disable the OpenXR tracking for mouth or eyes
+- **enable or disable different tracking:** to avoid conflicts with different tracking systems you can disable the OpenXR tracking for mouth or eyes
 
 ## what should work?
 
