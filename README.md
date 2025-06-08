@@ -25,7 +25,7 @@ If you share the same vision for minimal yet impactful ChilloutVR mods and want 
 
 ## License
 
-This project is open-source. Check the LICENSE file for more details.
+This project is open-source. So no worries :D
 
 ---
 
