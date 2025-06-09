@@ -15,7 +15,7 @@ It will also allow using newer VRs that will use OpenXR Tracking for face and ey
 
 ## what should work?
 
-- **CCK setup usage:** the CCK already contains many important things that allow already a based version of eye tracking or mouth tracking. For e.g. its possible to use default eye parameters with the eye limitations in the CCK or use the blinking setup of Chillout for the eyelid.
+- **CCK setup usage:** the CCK already contains many important things that allow a based version of eye tracking or mouth tracking. For e.g. its possible to use default eye parameters with the eye limitations in the CCK or use the blinking setup of Chillout for the eyelid.
 - **Bone usage:** some avatars are already face tracking compatible and allow the user with a setup in the avatar discriptor to implement everything needed. However not everyone knows how to set this up without issues. The mod should be able to track every neccessary bone for eye or mouth tracking.
 - **Blendshape usage:** some other avatars also uses blendshapes to make everything trackable. for that it's possible to use the face tracking mesh of the cck and check every blendshape that it contains to see if there might be already the right blendshapes to use. This could require to have the modscript at least in your avatar.
 
