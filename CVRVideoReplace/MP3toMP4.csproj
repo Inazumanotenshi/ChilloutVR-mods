@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!-- ChilloutVR install path. Can be overridden via the CVRPATH environment variable. -->
+        <CVRPATH Condition="'$(CVRPATH)' == ''">D:\SteamLibrary\steamapps\common\ChilloutVR</CVRPATH>
+        <ManagedLibsPath>$(CVRPATH)\ChilloutVR_Data\Managed\</ManagedLibsPath>
+
+        <AssemblyName>MP3toMP4</AssemblyName>
+        <RootNamespace>MP3toMP4</RootNamespace>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>disable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <GenerateDependencyFile>false</GenerateDependencyFile>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <DebugType>embedded</DebugType>
+        <Optimize>true</Optimize>
+
+        <!-- The DLL is written straight into the game's Mods folder. -->
+        <OutputPath>$(CVRPATH)\Mods\</OutputPath>
+
+        <!-- The game ships its own BCL facades; the version conflict notice is harmless. -->
+        <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3243;MSB3277</MSBuildWarningsAsMessages>
+    </PropertyGroup>
+
+    <!-- The MP3 icon is compiled into the DLL so the mod works anywhere without extra files. -->
+    <ItemGroup>
+        <EmbeddedResource Include="src\mp3.png" LogicalName="MP3toMP4.mp3.png" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="0Harmony">
+            <HintPath>$(CVRPATH)\MelonLoader\net35\0Harmony.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="MelonLoader">
+            <HintPath>$(CVRPATH)\MelonLoader\net35\MelonLoader.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+    </ItemGroup>
+
+    <!-- Reference all game DLLs (as is common in known CVR mod repos). -->
+    <ItemGroup>
+        <GameLibs Include="$(ManagedLibsPath)*.dll" />
+        <GameLibs Remove="$(ManagedLibsPath)Microsoft.Win32.Registry.dll" />
+    </ItemGroup>
+
+    <Target Name="AddGameReferences" BeforeTargets="ResolveAssemblyReferences">
+        <ItemGroup>
+            <Reference Include="@(GameLibs->'%(Filename)')">
+                <HintPath>%(GameLibs.Identity)</HintPath>
+                <Private>false</Private>
+            </Reference>
+        </ItemGroup>
+    </Target>
+
+    <!-- MelonLoader locks loaded mods; this allows rebuilding while the game runs (takes effect after restart). -->
+    <Target Condition="'$(OS)' == 'Windows_NT'" Name="DeleteOldModDll" BeforeTargets="BeforeBuild">
+        <Exec Command="if exist &quot;$(OutputPath)$(TargetName).dll&quot; del /F /Q &quot;$(OutputPath)$(TargetName).dll&quot;" ContinueOnError="true" />
+    </Target>
+
+</Project>
