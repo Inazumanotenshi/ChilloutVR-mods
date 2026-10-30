@@ -554,7 +554,7 @@ namespace MP3toMP4
             }
 
             if (!string.IsNullOrEmpty(title) && !LooksLikeUrl(title))
-                return title;
+                return DecodeText(title);
 
             if (string.IsNullOrEmpty(url))
             {
@@ -570,6 +570,59 @@ namespace MP3toMP4
             if (string.IsNullOrEmpty(url))
                 url = title;
             return FileNameFromUrl(url);
+        }
+
+        // Turns URL/HTML encoding back into plain text: "Mein%20Lied%20%C3%A4.mp3" -> "Mein Lied ä.mp3",
+        // "Rock &amp; Roll" -> "Rock & Roll". Also handles double encoding like "%2520".
+        private static string DecodeText(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            for (int pass = 0; pass < 3 && HasPercentEscape(text); pass++)
+            {
+                string decoded;
+                try
+                {
+                    decoded = Uri.UnescapeDataString(text);
+                }
+                catch
+                {
+                    break; // invalid escaping, keep what we have
+                }
+                if (decoded == text)
+                    break;
+                text = decoded;
+            }
+
+            if (text.IndexOf('&') >= 0 && text.IndexOf(';') > 0)
+            {
+                try
+                {
+                    text = System.Net.WebUtility.HtmlDecode(text);
+                }
+                catch
+                {
+                    // keep text
+                }
+            }
+
+            return text.Trim();
+        }
+
+        private static bool HasPercentEscape(string s)
+        {
+            for (int i = 0; i + 2 < s.Length; i++)
+            {
+                if (s[i] == '%' && IsHex(s[i + 1]) && IsHex(s[i + 2]))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool IsHex(char c)
+        {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
         }
 
         private static bool LooksLikeUrl(string s)
@@ -588,14 +641,7 @@ namespace MP3toMP4
             u = u.TrimEnd('/', '\\');
             int slash = Math.Max(u.LastIndexOf('/'), u.LastIndexOf('\\'));
             string name = slash >= 0 ? u.Substring(slash + 1) : u;
-            try
-            {
-                name = Uri.UnescapeDataString(name.Replace('+', ' '));
-            }
-            catch
-            {
-                // invalid escaping, keep raw text
-            }
+            name = DecodeText(name.Replace('+', ' '));
             if (string.IsNullOrEmpty(name))
             {
                 try

@@ -40,8 +40,18 @@ Optionally you can put your own image at `ChilloutVR\UserData\MP3toMP4\icon.png`
 5. **Drawing (`PixelCanvas.cs`, `Font5x7.cs`)**: Rendered on the CPU into a small Texture2D (640 px wide by
    default, same aspect ratio as the world's screen), which is then blitted into the `ProjectionTexture`.
    No shaders are needed and there is no dependency on world assets.
+6. **Menus (`QuickMenu.cs`, `UixSettings.cs`)**: Quick Menu page built with ChilloutVR's own UILib (no extra mod),
+   plus slider ranges for UI Expansion Kit's "Mod Settings" page when UIX is installed.
 
-## Settings (`UserData/MelonPreferences.cfg`, category `MP3toMP4`)
+## Settings
+
+All settings can be changed in game:
+
+- **Quick Menu → Misc tab → MP3toMP4**: toggles, sliders, a selection list for the display mode and a
+  **Pick Color** button that opens ChilloutVR's own color picker (swatch + RGB sliders).
+- **Main Menu → Mod Settings** (with UI Expansion Kit): `DisplayMode` is a dropdown, all numbers are sliders.
+
+Changes apply immediately and are saved automatically. Everything is also in `UserData/MelonPreferences.cfg`, category `MP3toMP4`:
 
 | Entry | Default | Meaning |
 |---|---|---|
@@ -52,7 +62,7 @@ Optionally you can put your own image at `ChilloutVR\UserData\MP3toMP4\icon.png`
 | `BarCount` | 48 | Number of bars (8 to 128). |
 | `Sensitivity` | 1.0 | How strongly the bars react. |
 | `AutoGain` | true | Levels out quiet players. |
-| `AccentColor` | #D96CC0 | Bar color (matches the icon). |
+| `AccentRed` / `AccentGreen` / `AccentBlue` | 217 / 108 / 192 | Bar color as RGB, 0 to 255 each (default matches the icon). |
 | `RenderWidth` | 640 | Internal resolution (256 to 1920). |
 | `MaxFps` | 30 | Visualizer frame rate (5 to 90). |
 | `DetectDelay` | 1.0 | Seconds without a picture before the mod takes over. |
