@@ -14,6 +14,8 @@ As soon as a real video is playing, the mod steps aside and the video is shown a
 **Local only:** only you see the overlay. Nothing changes for other players, the world or the server.
 The mod makes **no network requests** and collects or sends **no data**.
 
+<img width="640" height="360" alt="preview" src="https://github.com/user-attachments/assets/f2e5fbf9-a1c6-453f-be29-145e545f9eeb" />
+
 ## Requirements
 
 - ChilloutVR with **MelonLoader** (tested with MelonLoader 0.7.3).
