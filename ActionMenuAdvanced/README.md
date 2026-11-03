@@ -103,7 +103,7 @@ All settings are in the menu under the mod settings, or in `UserData\MelonPrefer
 
 With debug mode on, the version and "Debugging enabled" are shown below the menu, and the MelonLoader log tells you much more, for example:
 
-- Every avatar setting with its parameter and type, like `Avatar setting "Body" (NSFW/Size/Body): InputSingle -> number`
+- Every avatar setting with its parameter and type, like `Avatar setting "Body" (Config/Size/Body): InputSingle -> number`
 - Which entries were switched to the number pad
 - How many parameters the live sync watches
 - Which UI color is used
