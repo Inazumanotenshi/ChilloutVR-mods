@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>AdvActionMenu</AssemblyName>
+        <!-- muss "ActionMenu" bleiben, sonst findet die Mod ihre eingebetteten UI-Dateien nicht -->
+        <RootNamespace>ActionMenu</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="UIResources\index.html" />
+        <EmbeddedResource Include="UIResources\index.js" />
+        <EmbeddedResource Include="UIResources\index.css" />
+        <EmbeddedResource Include="UIResources\actionmenu.json" />
+        <EmbeddedResource Include="UIResources\Montserrat-Regular.ttf" />
+        <EmbeddedResource Include="UIResources\icon_actionmenu.svg" />
+        <EmbeddedResource Include="UIResources\icon_menu.svg" />
+        <EmbeddedResource Include="UIResources\icon_back.svg" />
+        <EmbeddedResource Include="UIResources\icon_avatar_emotes.svg" />
+        <EmbeddedResource Include="UIResources\icon_melon.svg" />
+        <EmbeddedResource Include="UIResources\icon_avatar_settings_profile.svg" />
+        <EmbeddedResource Include="UIResources\icon_np_backspace.svg" />
+        <EmbeddedResource Include="UIResources\icon_np_cancel.svg" />
+    </ItemGroup>
+</Project>

@@ -1,0 +1,531 @@
+@font-face {
+    /* GPL OFL font, yay!
+        https://www.1001freefonts.com/montserrat.font */
+    font-family: "Montserrat-Regular";
+    src: url("Montserrat-Regular.ttf");
+}
+
+/* CVRs eigene Schrift, liegt im Spiel unter UIResources/Fonts */
+@font-face {
+    font-family: "AMA-NotoSans";
+    src: url("../Fonts/NotoSans-Bold.ttf");
+}
+
+:root {
+    --accent: rgba(169, 40, 0, 1);         /* wird von der Mod auf deine CVR-UI-Farbe gesetzt */
+    --accent-soft: rgba(169, 40, 0, 0.88);
+    --hex-base: rgba(34, 34, 34, 0.75);    /* wie CVR-Panels */
+    --hex-hover: rgba(34, 34, 34, 1);
+    --hex-center: rgba(24, 24, 24, 0.9);
+}
+
+/* Zeichenflaeche ist 500x630: oben 130px frei fuer die Textbox, darunter das 500x500 Menue */
+#stage {
+    position: absolute;
+    left: 0px;
+    top: 130px;
+    width: 500px;
+    height: 500px;
+}
+
+* {
+    margin: 0px;
+    padding: 0px;
+    font-family: "AMA-NotoSans", Montserrat-Regular;
+}
+
+.themed-radial {
+    background: radial-gradient(#443700, #443700 25%, #ded530 25.1%, #f68e00 28%, #3a1500);
+    border-radius: 50%;
+}
+
+.themed-border {
+    border: 3px solid #ded530;
+}
+
+/* cyan: radial-gradient(#22434a, #22434a 25%, #57abbf 25.1%, #24798d 28%, #06181c); */
+
+#actionmenu {
+    display: block;
+    position: absolute;
+    height: 500px;
+    width: 500px;
+}
+
+#actionmenu .segments {
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+#actionmenu .segment {
+    display: block;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    background-color: var(--hex-base);
+}
+
+#widget-radial,
+#widget-j2d {
+    z-index: 10;
+}
+
+/* Widgets decken das Menue darunter fast ganz ab */
+#widget-radial, #widget-j2d {
+    --hex-base: rgba(34, 34, 34, 0.94);
+}
+
+#widget-radial .center .icon, #widget-j2d .center .icon {
+    width: 48px;
+    max-height: 48px;
+}
+
+#widget-radial .center .label, #widget-j2d .center .label {
+    font-size: 18px;
+}
+
+#widget-radial {
+    display: none;
+    position: absolute;
+    height: 497px;
+    width: 497px;
+
+    background-color: var(--hex-base);
+    clip-path: polygon(50% 0%, 93.301% 25%, 93.301% 75%, 50% 100%, 6.699% 75%, 6.699% 25%);
+    overflow: hidden;
+}
+
+#widget-radial .arc {
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: var(--accent-soft);
+}
+
+#widget-radial .value {
+    display: block;
+    position: absolute;
+    top: 12%;
+    left: 50%;
+    width: 100%;
+    height: 40px;
+    text-align: center;
+    color: white;
+    font-size: 30px;
+    transform: translate(-50%, -50%);
+    background-color: rgba(24, 24, 24, 0.85);
+    border-radius: 8px;
+    padding: 5px;
+}
+
+#widget-radial .center, #widget-j2d .center {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.inside {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 36%;
+    height: 36%;
+    background-color: var(--hex-center);
+    clip-path: polygon(50% 0%, 93.301% 25%, 93.301% 75%, 50% 100%, 6.699% 75%, 6.699% 25%);
+    transform: translate(-50%, -50%);
+}
+
+/* Mittel-Hexagon im Hauptmenue: kleiner als in den Widgets (2 * (HEX_R_IN - HEX_GAP) / 500) */
+#actionmenu .inside {
+    width: 21.6%;
+    height: 21.6%;
+}
+
+.animated-menu {
+    animation-name: open_actionmenu;
+    animation-iteration-count: 1;
+    animation-duration: 0.2s;
+    animation-fill-mode: forwards;
+}
+
+@keyframes open_actionmenu {
+    from {
+        transform: translate(-50%, -50%) scale(1.25);
+    }
+
+    to {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+#actionmenu .joystick,
+#widget-radial .indicator {
+    display: block;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    height: 6%;
+    width: 6%;
+    transform: translate(-50%, -50%);
+}
+
+.joystick {
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 3px solid var(--accent);
+}
+
+#actionmenu .joystick {
+    width: 4%;
+    height: 4%;
+}
+
+#widget-radial .indicator {
+    z-index: 3;
+}
+
+#widget-radial .joystick {
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+
+#actionmenu .items { /* cohtml needs this to show anything */
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+#actionmenu .items .item {
+    display: block;
+    position: absolute;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    white-space: nowrap;
+}
+
+#actionmenu .items .item .icon {
+    width: 56px;
+    max-height: 56px;
+    margin: 0px auto 2px auto;
+}
+
+/* Zurueck-Knopf im Mittel-Hexagon */
+#actionmenu .items .center-item .icon {
+    width: 40px;
+    max-height: 40px;
+}
+#actionmenu .items .center-item .label {
+    display: none;
+}
+
+.item .label.hover {
+    color: white;
+}
+
+.fade-in-item {
+    animation-name: fade_in_item;
+    animation-iteration-count: 1;
+    animation-duration: 0.15s;
+    animation-fill-mode: forwards;
+}
+
+@keyframes fade_in_item {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.animated-item {
+    animation-name: open_item;
+    animation-iteration-count: 1;
+    animation-duration: 0.1s;
+    animation-fill-mode: forwards;
+}
+
+@keyframes open_item {
+    from {
+        transform: translate(-50%, -65%);
+    }
+
+    to {
+        transform: translate(-50%, -50%);
+    }
+}
+
+.label {
+    font-size: 20px;
+    color: #ffffff;
+    text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.icon {
+    width: 75px;
+    max-height: 75px;
+    border-radius: 25%;
+}
+
+.full-size {
+    width: 100%;
+    height: 100%;
+}
+
+.debug {
+    border: 1px solid black;
+}
+
+
+/* ===== Ziffernblock-Widget ===== */
+#widget-numpad {
+    display: none;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 500px;
+    height: 500px;
+    z-index: 10;
+}
+
+#widget-numpad .np-segments, #widget-numpad .np-labels {
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+#widget-numpad .segment, #widget-numpad .np-ok {
+    display: block;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+}
+
+#widget-numpad .np-key, #widget-numpad .np-ok-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    color: #ffffff;
+    font-size: 30px;
+    /* schwarze Kontur, damit die Zeichen auch auf hellem Hintergrund lesbar sind */
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -2px 0px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, 0px 2px 0 #000, 0px 0px 6px rgba(0, 0, 0, 0.9);
+}
+
+#widget-numpad .np-key-big {
+    font-size: 46px;
+    line-height: 46px;
+}
+
+#widget-numpad .np-icon {
+    display: block;
+    width: 38px;
+    height: 29px;
+}
+
+#widget-numpad .np-ok-label {
+    left: 50%;
+    font-size: 26px;
+    z-index: 5; /* ueber dem Joystick-Punkt */
+}
+
+/* Textbox wie bei der CVR-Tastatur, direkt ueber der Hexagon-Spitze */
+#widget-numpad .np-header, #widget-j2d .w-header {
+    position: absolute;
+    left: 50%;
+    width: 492px; /* breiter als das Hexagon */
+    transform: translate(-50%, -100%);
+}
+
+#widget-numpad .np-meta, #widget-j2d .w-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 26px;
+    color: #ffffff;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -2px 0px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, 0px 2px 0 #000, 0px 0px 6px rgba(0, 0, 0, 0.9);
+    margin-bottom: 4px;
+}
+
+#widget-numpad .np-box, #widget-j2d .w-box {
+    height: 76px;
+    background-color: #ffffff;
+    border: 3px solid #222222;
+    border-radius: 6px;
+    padding: 0px 18px;
+    font-size: 50px;
+    line-height: 76px;
+    color: #222222;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* Platzhalter liegt absolut in der Box, so zeigt Cohtml ihn zuverlaessig an */
+#widget-numpad .np-box {
+    position: relative;
+}
+
+#widget-numpad .np-placeholder {
+    position: absolute;
+    left: 24px;
+    top: 0px;
+    color: #a8a8a8;
+}
+
+#widget-numpad .np-caret {
+    display: inline-block;
+    width: 4px;
+    height: 52px;
+    margin: 0px 2px;
+    vertical-align: middle;
+    background-color: #222222;
+    animation-name: np_blink;
+    animation-duration: 1s;
+    animation-iteration-count: infinite;
+}
+
+@keyframes np_blink {
+    0% { opacity: 1; }
+    49% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 0; }
+}
+
+#widget-numpad .joystick {
+    display: block;
+    position: absolute;
+    left: 50%;
+    width: 4%;
+    height: 4%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+}
+
+
+/* ===== Debug-Anzeige ===== */
+#debug-footer {
+    display: none;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 500px;
+    height: 500px;
+    z-index: 20;
+}
+
+#debug-footer .debug-left, #debug-footer .debug-right {
+    position: absolute;
+    bottom: 4px;
+    font-size: 20px;
+    color: #ffffff;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -2px 0px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, 0px 2px 0 #000, 0px 0px 6px rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+}
+
+#debug-footer .debug-left { left: 6px; }
+#debug-footer .debug-right { right: 6px; }
+
+
+/* ===== 2D-Joystick-Widget ===== */
+#widget-j2d {
+    display: none;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 500px;
+    height: 500px;
+    z-index: 10;
+}
+
+#widget-j2d .w-header {
+    top: -2px;
+}
+
+#widget-j2d .j2d-bg {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(34, 34, 34, 0.88);
+    clip-path: polygon(50% 0.8%, 92.6% 25.4%, 92.6% 74.6%, 50% 99.2%, 7.4% 74.6%, 7.4% 25.4%);
+}
+
+#widget-j2d .j2d-axis-x, #widget-j2d .j2d-axis-y, #widget-j2d .j2d-ring,
+#widget-j2d .j2d-guide-v, #widget-j2d .j2d-guide-h, #widget-j2d .j2d-marker {
+    position: absolute;
+}
+
+#widget-j2d .j2d-axis-x {
+    left: 37px;
+    top: 249px;
+    width: 426px;
+    height: 2px;
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+#widget-j2d .j2d-axis-y {
+    left: 249px;
+    top: 4px;
+    width: 2px;
+    height: 492px;
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+#widget-j2d .j2d-ring {
+    left: 86px;
+    top: 86px;
+    width: 324px;
+    height: 324px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+}
+
+#widget-j2d .j2d-guide-v {
+    width: 0px;
+    border-left: 2px dashed var(--accent);
+}
+
+#widget-j2d .j2d-guide-h {
+    height: 0px;
+    border-top: 2px dashed var(--accent);
+}
+
+#widget-j2d .triangle {
+    display: block;
+    position: absolute;
+    width: 0px;
+    height: 0px;
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-bottom: 22px solid rgba(255, 255, 255, 0.35);
+}
+
+/* kleines Hexagon in UI-Farbe mit weissem Rand */
+#widget-j2d .j2d-marker {
+    width: 60px;
+    height: 60px;
+    transform: translate(-50%, -50%);
+    background-color: #ffffff;
+    clip-path: polygon(50% 0%, 93.301% 25%, 93.301% 75%, 50% 100%, 6.699% 75%, 6.699% 25%);
+    z-index: 4;
+}
+
+#widget-j2d .j2d-marker-inner {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    width: 48px;
+    height: 48px;
+    background-color: var(--accent);
+    clip-path: polygon(50% 0%, 93.301% 25%, 93.301% 75%, 50% 100%, 6.699% 75%, 6.699% 25%);
+}
