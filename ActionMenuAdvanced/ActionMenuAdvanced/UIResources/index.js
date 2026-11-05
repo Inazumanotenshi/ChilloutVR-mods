@@ -40,6 +40,7 @@ const NARROW_DEG = 24;      // ab hier schmaler: Namen werden gedreht
 const LABEL_FONT_MAX = 22, LABEL_FONT_MIN = 13;
 
 let accent_rgb = [169, 40, 0];     // CVR-Standard #a92800, wird von der Mod mit deiner UI-Farbe ueberschrieben
+let base_rgb = [34, 34, 34];       // CVR-Standard #222222, mit "Colourize Menu" deine erste Spielerfarbe (abgedunkelt)
 let $segs = [];                      // ein div pro Menuepunkt
 
 const deg2rad = d => d * pi / 180;
@@ -106,7 +107,7 @@ function paint_segment(i) {
 	if (item?.enabled)
 		$s.style.backgroundColor = rgba(accent_rgb, hover ? 1 : 0.88);
 	else
-		$s.style.backgroundColor = hover ? "rgba(34, 34, 34, 1)" : "rgba(34, 34, 34, 0.75)";
+		$s.style.backgroundColor = rgba(base_rgb, hover ? 1 : 0.75);
 }
 
 function repaint_all_segments() { $segs.forEach((_, i) => paint_segment(i)); }
@@ -124,15 +125,32 @@ function pick_index(x, y, n, current) {
 }
 const pick_sector = (x, y) => pick_index(x, y, sectors, selected_sector);
 
-function set_accent_color(hex) {
-	if (typeof hex !== "string") return;
+// wie CVRs ViewColourHandler: zu helle Farben auf eine maximale Helligkeit abdunkeln
+function parse_hex_limited(hex, max_luma) {
+	if (typeof hex !== "string") return null;
 	const m = hex.replace('#', '').match(/^([0-9a-fA-F]{6})/);
-	if (!m) return;
+	if (!m) return null;
 	const v = parseInt(m[1], 16);
-	accent_rgb = [(v >> 16) & 255, (v >> 8) & 255, v & 255];
-	// wie CVRs ViewColourHandler: zu helle Akzentfarben auf Helligkeit 120 abdunkeln
-	const luma = 0.2126 * accent_rgb[0] + 0.7152 * accent_rgb[1] + 0.0722 * accent_rgb[2];
-	if (luma > 120) accent_rgb = accent_rgb.map(c => Math.floor(c * 120 / luma));
+	let rgb = [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+	const luma = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+	if (luma > max_luma) rgb = rgb.map(c => Math.floor(c * max_luma / luma));
+	return rgb;
+}
+
+function set_ui_colors(primary_hex, accent_hex, primary_max_luma) {
+	const p = parse_hex_limited(primary_hex, primary_max_luma ?? 20);
+	if (p) {
+		base_rgb = p;
+		document.documentElement.style.setProperty('--hex-base', rgba(base_rgb, 0.75));
+		document.documentElement.style.setProperty('--hex-hover', rgba(base_rgb, 1));
+	}
+	set_accent_color(accent_hex);
+}
+
+function set_accent_color(hex) {
+	const rgb = parse_hex_limited(hex, 120);
+	if (!rgb) return;
+	accent_rgb = rgb;
 	document.documentElement.style.setProperty('--accent', rgba(accent_rgb, 1));
 	document.documentElement.style.setProperty('--accent-soft', rgba(accent_rgb, 0.8));
 	repaint_all_segments();
@@ -310,7 +328,10 @@ function handle_click_main() {
 		}
 
 		case 'game settings toggle': {
-			engine.call("CVRAppCallSaveSetting", action.parameter, is_enabled ? "False" : "True");
+			if (action.parameter === 'GeneralShowHud') // CVR reagiert nicht mehr live auf diese Einstellung
+				engine.call("SetHudVisible", !is_enabled);
+			else
+				engine.call("CVRAppCallSaveSetting", action.parameter, is_enabled ? "False" : "True");
 			action_toggle = true;
 			break;
 		}
@@ -959,7 +980,7 @@ const widget_numpad = (function() {
 	const fmt = v => (v == null || isNaN(v)) ? "0" : String(Math.round(Number(v) * 10000) / 10000);
 
 	const paint = () => {
-		$segs.forEach(($s, i) => $s.style.backgroundColor = i === sel ? "rgba(34, 34, 34, 1)" : "rgba(34, 34, 34, 0.75)");
+		$segs.forEach(($s, i) => $s.style.backgroundColor = rgba(base_rgb, i === sel ? 1 : 0.75));
 		$ok.style.backgroundColor = rgba(accent_rgb, in_center ? 1 : 0.85);
 		$text.innerHTML = typed.replace("-", "\u2212");
 		$placeholder.innerHTML = typed === "" ? fmt(current) : "";
@@ -1178,6 +1199,7 @@ engine.on('ToggleActionMenu', (show) => {
 });
 
 engine.on('AccentColor', (hex) => set_accent_color(hex));
+engine.on('UiColors', (primary, accent, max_luma) => set_ui_colors(primary, accent, max_luma));
 
 engine.on('GameValueUpdate', (_update) => {
 	on_game_value_update(JSON.parse(_update).action);

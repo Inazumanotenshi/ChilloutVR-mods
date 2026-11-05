@@ -34,7 +34,7 @@ namespace ActionMenu
     using MenuBuilder = Func<List<MenuItem>>;
     public class ActionMenuMod : MelonMod
     {
-        public const string ModVersion = "0.1.0";
+        public const string ModVersion = "0.1.1";
 
         // Debug-Modus: ausfuehrlicheres Log und Versions-/Debug-Anzeige unten im Menue
         internal static bool DebugMode => instance?.debugMode?.Value == true;
@@ -931,6 +931,7 @@ namespace ActionMenu
             view.RegisterForEvent("ActionMenuReady", new Action(OnActionMenuReady));
             view.BindCall("CVRAppCallSystemCall", new Action<string, string, string, string, string>(menuManager.HandleSystemCall));
             view.BindCall("CVRAppCallSaveSetting", new Action<string, string>(MetaPort.Instance.settings.SetSetting));
+            view.BindCall("SetHudVisible", new Action<bool>(OnSetHudVisible));
             view.BindCall("SetMelonPreference", new Action<string, string>(OnSetMelonPreference));
             view.BindCall("ItemCallback", new Action<string>(OnItemCallback));
             view.BindCall("ItemCallback_bool", new Action<string, bool>(OnItemCallback_bool));
@@ -1747,28 +1748,148 @@ namespace ActionMenu
             }
         }
 
-        // CVRs Standard-Akzentfarbe der Menues (aus Common/vars.css)
+        // CVRs Standard-Farben der Menues (aus Common/vars.css)
+        private const string cvrDefaultPrimary = "222222";
         private const string cvrDefaultAccent = "a92800";
 
-        // UI-Farbe ans Menue schicken, damit aktive Toggles wie in der restlichen CVR-UI aussehen:
-        // mit "Colourize Menu" nimmt CVR deine zweite Spielerfarbe, sonst das Standard-Rot-Orange
+        private static string? ColorToHex(object? v)
+        {
+            switch (v)
+            {
+                case Color c: return ColorUtility.ToHtmlStringRGB(c);
+                case Color32 c32: return ColorUtility.ToHtmlStringRGB(c32);
+                case string str:
+                    var t = str.Trim().TrimStart('#');
+                    return t.Length >= 6 && t.Substring(0, 6).All(Uri.IsHexDigit) ? t.Substring(0, 6) : null;
+                default: return null;
+            }
+        }
+
+        // erstes Feld/Property, dessen Name den Text enthaelt und eine Farbe ist
+        private static string? FindColorMember(object o, string nameContains)
+        {
+            const BindingFlags f = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var fi in o.GetType().GetFields(f))
+                if (fi.Name.IndexOf(nameContains, StringComparison.OrdinalIgnoreCase) >= 0)
+                { var h = ColorToHex(fi.GetValue(o)); if (h != null) return h; }
+            foreach (var pi in o.GetType().GetProperties(f))
+                if (pi.CanRead && pi.GetIndexParameters().Length == 0 && pi.Name.IndexOf(nameContains, StringComparison.OrdinalIgnoreCase) >= 0)
+                { try { var h = ColorToHex(pi.GetValue(o)); if (h != null) return h; } catch { } }
+            return null;
+        }
+
+        private static object? GetStaticOrInstance(Type t, string member)
+        {
+            const BindingFlags all = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            object? target = null;
+            var prop = t.GetProperty(member, all);
+            var field = prop == null ? t.GetField(member, all) : null;
+            var isStatic = prop?.GetGetMethod(true)?.IsStatic ?? field?.IsStatic ?? false;
+            if (!isStatic)
+            {
+                var inst = (object?)t.GetProperty("Instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(null)
+                    ?? t.GetField("Instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(null);
+                if (inst == null && typeof(UnityEngine.Object).IsAssignableFrom(t)) inst = UnityEngine.Object.FindObjectOfType(t);
+                if (inst == null) return null;
+                target = inst;
+            }
+            return prop != null ? prop.GetValue(target) : field?.GetValue(target);
+        }
+
+        // Liest die Farben so, wie CVR seine eigenen Menues einfaerbt:
+        // mit "Colourize Menu" erste Spielerfarbe = Hintergrund, zweite = Akzent, sonst CVR-Standard
+        private (string primary, string accent, float maxLuma, bool colourize) ReadUiColors()
+        {
+            var primary = cvrDefaultPrimary; var accent = cvrDefaultAccent;
+            var colourize = false; var maxLuma = 20f;
+            var dbg = new List<string>();
+
+            // Einstellungen der CVR-UI (Colourize Menu, maximale Helligkeit des Hintergrunds)
+            try
+            {
+                var uiType = AccessTools.TypeByName("ABI_RC.Core.UI.UIRework.CVRUIManagerBase");
+                var ui = uiType != null && typeof(UnityEngine.Object).IsAssignableFrom(uiType) ? UnityEngine.Object.FindObjectOfType(uiType) : null;
+                if (ui != null)
+                {
+                    if (AccessTools.Field(uiType, "_colourizeMenu")?.GetValue(ui) is bool b) colourize = b;
+                    var luma = AccessTools.Field(uiType, "_primaryColourMaxLuma")?.GetValue(ui);
+                    if (luma != null) maxLuma = Convert.ToSingle(luma);
+                    dbg.Add($"ui manager {ui.GetType().Name}: colourize={colourize}, maxLuma={maxLuma}");
+                }
+                else
+                {
+                    colourize = MetaPort.Instance.settings.GetSettingsBool("GeneralUIColourizeMenu");
+                    dbg.Add($"no ui manager found, setting GeneralUIColourizeMenu={colourize}");
+                }
+            }
+            catch (Exception e) { dbg.Add($"ui settings failed: {e.Message}"); }
+
+            if (colourize)
+            {
+                string? p = null, a = null;
+                try
+                {
+                    var pcmType = AccessTools.TypeByName("ABI_RC.Systems.PlayerColors.PlayerColorsManager");
+                    var colors = pcmType != null ? GetStaticOrInstance(pcmType, "CurrentColors") : null;
+                    if (colors != null)
+                    {
+                        p = FindColorMember(colors, "primary");
+                        a = FindColorMember(colors, "secondary");
+                        dbg.Add($"player colors ({colors.GetType().Name}): primary={p ?? "?"}, secondary={a ?? "?"}");
+                        if (DebugMode && (p == null || a == null))
+                            dbg.Add("player color members: " + string.Join(", ", colors.GetType()
+                                .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                                .Select(x => $"{x.Name}:{x.FieldType.Name}")));
+                    }
+                    else dbg.Add("PlayerColorsManager.CurrentColors not found");
+                }
+                catch (Exception e) { dbg.Add($"player colors failed: {e.Message}"); }
+
+                // Rueckfall auf die gespeicherten Einstellungen
+                try
+                {
+                    p ??= ColorToHex(MetaPort.Instance.settings.GetSettingsString("PlayerColorPrimary"));
+                    a ??= ColorToHex(MetaPort.Instance.settings.GetSettingsString("PlayerColorSecondary"));
+                }
+                catch { }
+                if (p != null) primary = p;
+                if (a != null) accent = a;
+            }
+
+            if (DebugMode) logger.Msg($"UI colors: primary #{primary}, accent #{accent} | " + string.Join(" | ", dbg));
+            return (primary, accent, maxLuma, colourize);
+        }
+
         private void SendAccentColor()
         {
             try
             {
-                var s = MetaPort.Instance.settings;
-                var hex = cvrDefaultAccent;
-                if (s.GetSettingsBool("GeneralUIColourizeMenu"))
-                {
-                    var secondary = s.GetSettingsString("PlayerColorSecondary");
-                    if (!string.IsNullOrEmpty(secondary)) hex = secondary;
-                }
-                cohtmlView?.View?.TriggerEvent<string>("AccentColor", hex);
-                if (DebugMode) logger.Msg($"Accent color: #{hex.TrimStart('#')} (colourize menu: {s.GetSettingsBool("GeneralUIColourizeMenu")})");
+                var (primary, accent, maxLuma, _) = ReadUiColors();
+                cohtmlView?.View?.TriggerEvent<string, string, float>("UiColors", primary, accent, maxLuma);
             }
             catch (Exception e)
             {
-                logger.Warning($"Could not read accent color: {e.Message}");
+                logger.Warning($"Could not read UI colors: {e.Message}");
+            }
+        }
+
+        // HUD ein-/ausblenden: CVR reagiert nicht mehr live auf die Einstellung GeneralShowHud,
+        // deshalb direkt ueber das HUD selbst (und die Einstellung fuer den naechsten Start mitspeichern)
+        private void OnSetHudVisible(bool show)
+        {
+            try
+            {
+                var hud = ABI_RC.Core.UI.CohtmlHud.Instance;
+                if (hud != null)
+                {
+                    if (show) hud.ShowHud(); else hud.HideHud();
+                }
+                MetaPort.Instance.settings.SetSetting("GeneralShowHud", show ? "True" : "False");
+                if (DebugMode) logger.Msg($"HUD {(show ? "shown" : "hidden")} (hud found: {hud != null})");
+            }
+            catch (Exception e)
+            {
+                logger.Warning($"Could not toggle the HUD: {e.Message}");
             }
         }
 

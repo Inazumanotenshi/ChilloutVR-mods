@@ -76,7 +76,7 @@
 
 /* Widgets decken das Menue darunter fast ganz ab */
 #widget-radial, #widget-j2d {
-    --hex-base: rgba(34, 34, 34, 0.94);
+    --hex-base: var(--hex-hover);
 }
 
 #widget-radial .center .icon, #widget-j2d .center .icon {
@@ -456,7 +456,8 @@
     top: 0px;
     width: 100%;
     height: 100%;
-    background-color: rgba(34, 34, 34, 0.88);
+    background-color: var(--hex-hover);
+    opacity: 0.9;
     clip-path: polygon(50% 0.8%, 92.6% 25.4%, 92.6% 74.6%, 50% 99.2%, 7.4% 74.6%, 7.4% 25.4%);
 }
 
