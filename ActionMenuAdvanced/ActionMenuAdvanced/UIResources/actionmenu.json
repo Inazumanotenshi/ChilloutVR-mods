@@ -73,6 +73,7 @@
             },
             {
                 "name": "HUD",
+                "icon": "icon_hud.svg",
                 "enabled": true,
                 "action": {
                     "type": "game settings toggle",
@@ -82,6 +83,7 @@
             },
             {
                 "name": "Audio master",
+                "icon": "icon_audio.svg",
                 "action": {
                     "type": "game settings int",
                     "parameter": "AudioMaster",

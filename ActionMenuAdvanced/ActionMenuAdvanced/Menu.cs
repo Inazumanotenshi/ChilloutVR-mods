@@ -57,6 +57,21 @@ namespace ActionMenu
         public bool? toggle;
         public bool? exclusive_option; // highlight a single option in current menu
         public float? duration; // in seconds (float)
+
+        // AdvActionMenu: Steuerungsart wurde per item_overrides bewusst festgelegt, nicht automatisch umstellen
+        [JsonIgnore]
+        public bool control_locked;
+    }
+
+    // AdvActionMenu: einzelne Eigenschaften eines vorhandenen Eintrags aendern, ohne das ganze Menue zu ersetzen
+    public class ItemOverride
+    {
+        public string? icon;
+        public string? control;
+        public float? min_value;
+        public float? max_value;
+        // true = Grenzen entfernen (unbegrenzte Zahleneingabe)
+        public bool? no_limits;
     }
 
     // defines modifications to perform on existing Menus: removing, adding items and replacing whole menu
@@ -72,6 +87,10 @@ namespace ActionMenu
         // if it didn't exist, it is created
         [JsonProperty(PropertyName = "overwrites")]
         protected Menus overwrites = new();
+        // AdvActionMenu: menu name -> item name -> einzelne Aenderungen (Icon, Steuerungsart, Grenzen)
+        // Neue Eintraege im Avatar bleiben dadurch automatisch im Menue
+        [JsonProperty(PropertyName = "item_overrides")]
+        protected Dictionary<string, Dictionary<string, ItemOverride>> itemOverrides = new();
 
         public MenusPatch() { }
 
@@ -121,6 +140,26 @@ namespace ActionMenu
 
             foreach (var x in overwrites)
                 menus[x.Key] = x.Value;
+
+            foreach (var x in itemOverrides)
+            {
+                if (x.Value == null || !menus.TryGetValue(x.Key, out var items))
+                    continue;
+                for (var i = 0; i < items.Count; ++i)
+                {
+                    var item = items[i]; // struct: Kopie aendern und zurueckschreiben
+                    if (item.name == null || !x.Value.TryGetValue(item.name, out var o) || o == null)
+                        continue;
+                    if (o.icon != null) item.icon = o.icon;
+                    var a = item.action;
+                    if (o.control != null) { a.control = o.control; a.control_locked = true; }
+                    if (o.no_limits == true) { a.min_value = null; a.max_value = null; }
+                    if (o.min_value != null) a.min_value = o.min_value;
+                    if (o.max_value != null) a.max_value = o.max_value;
+                    item.action = a;
+                    items[i] = item;
+                }
+            }
         }
     }
 

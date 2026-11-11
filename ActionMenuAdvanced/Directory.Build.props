@@ -16,7 +16,7 @@
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
-        <Version>0.1.0</Version>
+        <Version>0.2.0-beta.2</Version>
         <DebugSymbols>true</DebugSymbols>
         <DebugType>embedded</DebugType>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>AdvActionMenu.Unity</AssemblyName>
+        <RootNamespace>AdvActionMenu.Unity</RootNamespace>
+        <OutputPath>$(UnityOut)</OutputPath>
+    </PropertyGroup>
+    <ItemGroup>
+        <Reference Include="$(UnityManaged)\UnityEngine\UnityEngine.CoreModule.dll" Private="false" />
+    </ItemGroup>
+</Project>

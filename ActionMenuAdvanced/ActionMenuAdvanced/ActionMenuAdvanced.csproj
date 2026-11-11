@@ -18,5 +18,19 @@
         <EmbeddedResource Include="UIResources\icon_avatar_settings_profile.svg" />
         <EmbeddedResource Include="UIResources\icon_np_backspace.svg" />
         <EmbeddedResource Include="UIResources\icon_np_cancel.svg" />
+        <EmbeddedResource Include="UIResources\icon_hud.svg" />
+        <EmbeddedResource Include="UIResources\icon_audio.svg" />
+        <EmbeddedResource Include="UIResources\icon_animation.svg" />
+        <EmbeddedResource Include="UIResources\icon_anim_spawn.svg" />
+        <EmbeddedResource Include="UIResources\icon_anim_fade.svg" />
+        <EmbeddedResource Include="UIResources\icon_anim_off.svg" />
+        <EmbeddedResource Include="UIResources\icon_scale_avatar.svg" />
+        <EmbeddedResource Include="UIResources\icon_resize.svg" />
+        <EmbeddedResource Include="UIResources\icon_move.svg" />
+        <EmbeddedResource Include="UIResources\icon_rotate.svg" />
+        <EmbeddedResource Include="UIResources\icon_flick.svg" />
+        <EmbeddedResource Include="UIResources\icon_back_item.svg" />
+        <EmbeddedResource Include="UIResources\icon_pages.svg" />
+        <EmbeddedResource Include="UIResources\icon_debug.svg" />
     </ItemGroup>
 </Project>

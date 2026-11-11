@@ -1,0 +1,29 @@
+<Project>
+    <!--
+        Unity-Werkzeuge fuer AdvActionMenu (Generator fuer Icons und Override-JSON).
+        Gebaut wird gegen die DLLs deiner Unity-Installation. Pfad hier anpassen
+        oder per Umgebungsvariable UNITY_MANAGED setzen.
+    -->
+    <PropertyGroup>
+        <UnityManaged Condition="'$(UnityManaged)' == '' and '$(UNITY_MANAGED)' != ''">$(UNITY_MANAGED)</UnityManaged>
+        <UnityManaged Condition="'$(UnityManaged)' == ''">D:\Unity\Versions\2022.3.58f1\Editor\Data\Managed</UnityManaged>
+        <!-- fertige DLLs landen im Projektordner unter Editor\AdvActionMenu (Ordner kann so in Assets gezogen werden) -->
+        <UnityOut>$(MSBuildThisFileDirectory)..\Editor\AdvActionMenu\</UnityOut>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <LangVersion>9.0</LangVersion>
+        <Nullable>disable</Nullable>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <DebugType>embedded</DebugType>
+        <Version>1.0.0</Version>
+        <NoWarn>$(NoWarn);MSB3277</NoWarn>
+    </PropertyGroup>
+
+    <Target Name="CheckUnityPath" BeforeTargets="ResolveAssemblyReferences">
+        <Error Condition="!Exists('$(UnityManaged)\UnityEngine\UnityEngine.CoreModule.dll')"
+               Text="Unity nicht gefunden unter '$(UnityManaged)'. Pfad in Unity\Directory.Build.props oder Umgebungsvariable UNITY_MANAGED anpassen." />
+    </Target>
+</Project>

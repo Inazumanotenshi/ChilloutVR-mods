@@ -34,7 +34,7 @@ namespace ActionMenu
     using MenuBuilder = Func<List<MenuItem>>;
     public class ActionMenuMod : MelonMod
     {
-        public const string ModVersion = "0.1.1";
+        public const string ModVersion = "0.2.0";
 
         // Debug-Modus: ausfuehrlicheres Log und Versions-/Debug-Anzeige unten im Menue
         internal static bool DebugMode => instance?.debugMode?.Value == true;
@@ -431,6 +431,8 @@ namespace ActionMenu
             "icon_actionmenu.svg", "icon_menu.svg", "icon_back.svg", "icon_avatar_emotes.svg", "icon_melon.svg",
             "icon_avatar_settings_profile.svg",
             "icon_np_backspace.svg", "icon_np_cancel.svg",
+            // eigene Icons im Stil der CVR-Icons
+            "icon_hud.svg", "icon_audio.svg", "icon_animation.svg", "icon_anim_spawn.svg", "icon_anim_fade.svg", "icon_anim_off.svg", "icon_scale_avatar.svg", "icon_resize.svg", "icon_move.svg", "icon_rotate.svg", "icon_flick.svg", "icon_back_item.svg", "icon_pages.svg", "icon_debug.svg",
         };
 
         // Show or hide the Action menu, use it cautiously
@@ -591,7 +593,7 @@ namespace ActionMenu
                 {
                     var item = items[i]; // MenuItem ist ein struct: Kopie aendern und zurueckschreiben
                     var a = item.action;
-                    if (a.type != "avatar parameter" || a.control != "radial" || a.parameter == null) continue;
+                    if (a.type != "avatar parameter" || a.control != "radial" || a.parameter == null || a.control_locked) continue;
                     if (!inputSingles.Contains(a.parameter)) continue;
                     if ((a.min_value ?? 0f) != 0f || (a.max_value ?? 1f) != 1f) continue;
 
@@ -768,6 +770,13 @@ namespace ActionMenu
         private static Transform menuTransform;
         private static CohtmlView cohtmlView;
         private static Collider menuCollider;
+        private static MeshRenderer? menuRenderer;
+        // ob das Menue offen ist; die Ansicht selbst bleibt beim Schliessen kurz sichtbar fuer die Animation
+        private static bool menuOpen = false;
+        // true = Menue ist komplett ausgeblendet (auch keine Schliess-Animation mehr am Laufen)
+        private static bool menuHidden = true;
+        private static int closeToken = 0;
+        private const float closeAnimationSeconds = 0.22f;
         private static CVR_MenuManager menuManager;
         private static Animator menuAnimator;
         private static int cohtmlReadyState = 0; // 0=startup, 1=binding ready, 2=ActionMenuReady
@@ -779,6 +788,9 @@ namespace ActionMenu
         private Dictionary<string, MelonPreferences_Entry> melonPrefsMap;
         private MelonPreferences_Entry<bool> flickSelection, boringBackButton, dontInstallResources,
             splitAvatarOvercrowdedMenu, scaleWithAvatar, debugMode;
+        private MelonPreferences_Entry<string> animationStyle;
+        private static readonly string[] animationStyles = { "spawn", "fade", "disabled" };
+        private bool AnimationsOn => animationStyle?.Value != "disabled";
         private MelonPreferences_Entry<float> menuSize;
         private MelonPreferences_Entry<Vector2> menuPositionOffset, menuRotationXY;
         private MelonPreferences_Entry<KeyCode> openKeyBinding, reloadKeyBinding;
@@ -806,6 +818,9 @@ namespace ActionMenu
                 description: "Don't install nor overwrite the resource files (useful for developping the Action Menu)");
             splitAvatarOvercrowdedMenu = melonPrefs.CreateEntry("split_overcrowded_avatar_menu", false, "No crowded menus",
                 description: "Split avatar menu in multiple pages when it's too crowded");
+            animationStyle = melonPrefs.CreateEntry("animation_style", "spawn", "Animation",
+                description: "How the tiles appear when opening the menu or switching to a submenu: spawn, fade or disabled");
+            if (!animationStyles.Contains(animationStyle.Value)) animationStyle.Value = "spawn";
             debugMode = melonPrefs.CreateEntry("debug_mode", false, "Debug mode",
                 description: "Verbose logging and show version and debug info below the menu");
             scaleWithAvatar = melonPrefs.CreateEntry("scale_with_avatar", true, "Scale with avatar",
@@ -843,6 +858,13 @@ namespace ActionMenu
                     case MelonPreferences_Entry<bool> e: // all bool prefs impact the menu deeply = need reload
                         e.OnEntryValueChanged.Subscribe((_, _) => {
                             BuildOurMelonPrefsMenus(); // rebuild and send it back
+                            FullReload();
+                        });
+                        break;
+
+                    case MelonPreferences_Entry<string> e when e.Identifier == animationStyle.Identifier:
+                        e.OnEntryValueChanged.Subscribe((_, _) => {
+                            BuildOurMelonPrefsMenus();
                             FullReload();
                         });
                         break;
@@ -909,19 +931,19 @@ namespace ActionMenu
             VRBindingMod.RegisterBinding("ActionMenuOpen", "Open Action Menu (left hand)", VRBindingMod.Requirement.optional, a =>
             {
                 if (a.GetStateDown(SteamVR_Input_Sources.Any))
-                    ToggleMenu(!cohtmlView.enabled, leftSide: true);
+                    ToggleMenu(!menuOpen, leftSide: true);
             });
             VRBindingMod.RegisterBinding("ActionMenuOpenRight", "Open Action Menu (right hand)", VRBindingMod.Requirement.optional, a =>
             {
                 if (a.GetStateDown(SteamVR_Input_Sources.Any))
-                    ToggleMenu(!cohtmlView.enabled, leftSide: false);
+                    ToggleMenu(!menuOpen, leftSide: false);
             });
         }
 
         private static bool OnUpdateMovementSystem(MovementSystem __instance)
         {
             if (!MetaPort.Instance.isUsingVr) return true;
-            return cohtmlView?.enabled != true; // TODO: animation still run, prevent emotes
+            return !menuOpen; // TODO: animation still run, prevent emotes
         }
 
         private void MenuManagerRegisterEvents()
@@ -971,15 +993,21 @@ namespace ActionMenu
             t.SetParent(parent, false);
             UpdateMenuScale();
 
-            menuCollider = t.GetComponent<Collider>();
+            // Der Collider der Quad-Flaeche wird nicht gebraucht (die Mod liest Joystick/Maus selbst).
+            // Er liegt auf der UI-Ebene und fing auch bei geschlossenem Menue alle Klicks und Laser ab -> weg damit.
+            var col = t.GetComponent<Collider>();
+            if (col != null) UnityEngine.Object.DestroyImmediate(col);
+            menuCollider = null;
 
-            var r = t.GetComponent<MeshRenderer>();
+            var r = menuRenderer = t.GetComponent<MeshRenderer>();
             r.sortingLayerID = 0;
             r.sortingOrder = 10;
 
             var a = menuAnimator = go.AddComponent<Animator>();
             a.runtimeAnimatorController = animator;
             a.SetBool("Open", true);
+            // Der Animator steuert auch Shader-Werte der Flaeche, er muss also laufen.
+            // Sein Auf-/Zuschnappen ueberspringen wir aber (siehe SettleMenuAnimator).
 
             var v = cohtmlView = go.AddComponent<CohtmlView>();
             v.Listener.ReadyForBindings += MenuManagerRegisterEvents;
@@ -993,6 +1021,7 @@ namespace ActionMenu
             // ready set go
             v.enabled = true;
             go.SetActive(true);
+            SettleMenuAnimator();
             UpdatePositionToAnchor();
         }
 
@@ -1078,12 +1107,37 @@ namespace ActionMenu
                 anchorToLeftHand = leftSide;
             }
 
-            if (show) { SendAccentColor(); PollWatchedParams(force: true); }
+            menuOpen = show;
+            if (show) { SendAccentColor(); PollWatchedParams(force: false); } // nur geaenderte Werte, unbekannte zaehlen als geaendert
             cohtmlView.View.TriggerEvent<bool>("ToggleActionMenu", show);
-            cohtmlView.enabled = show; // TODO: doesn this reload cohtml each time? careful
-            menuAnimator.SetBool("Open", show);
 
-            if (show && menuCollider?.enabled == true)
+            SettleMenuAnimator(); // immer im fertig geoeffneten Zustand, kein Auf-/Zuschnappen
+            if (AnimationsOn)
+            {
+                // eigene Animation im Menue, beim Schliessen kurz sichtbar lassen
+                if (show)
+                {
+                    ++closeToken; // eine laufende Schliess-Animation abbrechen
+                    menuHidden = false;
+                    cohtmlView.enabled = true;
+                    if (menuRenderer != null) menuRenderer.enabled = true;
+                }
+                else
+                {
+                    MelonCoroutines.Start(HideAfterCloseAnimation(++closeToken));
+                }
+            }
+            else
+            {
+                // keine Animation: sofort zeigen bzw. ausblenden
+                ++closeToken;
+                menuHidden = !show;
+                cohtmlView.enabled = show;
+                if (menuRenderer != null) menuRenderer.enabled = show;
+                if (!show && menuAnimator != null) menuAnimator.enabled = false;
+            }
+
+            if (show)
                 UpdatePositionToAnchor();
 
             var vr = MetaPort.Instance.isUsingVr;
@@ -1106,7 +1160,7 @@ namespace ActionMenu
             if (menuManager._inputManager == null)
                 menuManager._inputManager = CVRInputManager.Instance;
 
-            if (cohtmlView?.enabled != true || cohtmlView?.View == null) return;
+            if (!menuOpen || cohtmlView?.View == null) return;
 
             var joystick = Vector2.zero;
             var trigger = 0f;
@@ -1124,8 +1178,7 @@ namespace ActionMenu
             }
             else
             {
-                if (menuCollider.enabled)
-                    UpdatePositionToAnchor();
+                UpdatePositionToAnchor();
 
                 var im = menuManager._inputManager;
                 joystick = anchorToLeftHand ?
@@ -1170,7 +1223,54 @@ namespace ActionMenu
         {
             melonPrefsMenus = ourLib.BuildMelonPrefsMenus(
                 // that one is for devs, change it in the melonprefs conf
-                melonPrefs.Entries.FindAll(e => e.Identifier != dontInstallResources.Identifier && e.Identifier != originalChoice.Identifier));
+                melonPrefs.Entries.FindAll(e => e.Identifier != dontInstallResources.Identifier && e.Identifier != originalChoice.Identifier
+                    && e.Identifier != animationStyle.Identifier));
+
+            // Untermenue "Animation" mit Spawn / Fade / Disabled als Auswahl
+            var settingsKey = melonPrefsMenus.Keys.First();
+            var subKey = settingsKey + hierarchySeparator + "animation";
+            MenuItem Option(string name, string value) => new MenuItem
+            {
+                name = name,
+                enabled = animationStyle.Value == value,
+                action = new()
+                {
+                    type = "set melon preference",
+                    control = "toggle",
+                    parameter = animationStyle.Identifier,
+                    value = value,
+                    toggle = true,
+                    exclusive_option = true,
+                },
+            };
+            melonPrefsMenus[settingsKey].Insert(0, new MenuItem { name = "Animation", icon = "icon_animation.svg", action = new() { type = "menu", menu = subKey } });
+            var spawn = Option("Spawn", "spawn"); spawn.icon = "icon_anim_spawn.svg";
+            var fade = Option("Fade", "fade"); fade.icon = "icon_anim_fade.svg";
+            var off = Option("Disabled", "disabled"); off.icon = "icon_anim_off.svg";
+            melonPrefsMenus[subKey] = new List<MenuItem> { spawn, fade, off };
+
+            // Icons fuer die uebrigen Einstellungen (nach Kennung der Einstellung)
+            var prefIcons = new Dictionary<string, string>
+            {
+                ["flick_selection"] = "icon_flick.svg",
+                ["boring_back_button"] = "icon_back_item.svg",
+                ["split_overcrowded_avatar_menu"] = "icon_pages.svg",
+                ["debug_mode"] = "icon_debug.svg",
+                ["scale_with_avatar"] = "icon_scale_avatar.svg",
+                ["menu_size"] = "icon_resize.svg",
+                ["menu_position_offset"] = "icon_move.svg",
+                ["menu_rotation_xy"] = "icon_rotate.svg",
+            };
+            var settingsItems = melonPrefsMenus[settingsKey];
+            for (var i = 0; i < settingsItems.Count; ++i)
+            {
+                var it = settingsItems[i];
+                if (it.icon == null && it.action.parameter != null && prefIcons.TryGetValue(it.action.parameter, out var ic))
+                {
+                    it.icon = ic;
+                    settingsItems[i] = it;
+                }
+            }
         }
 
 
@@ -1352,6 +1452,7 @@ namespace ActionMenu
                 flick_selection = flickSelection.Value,
                 boring_back_button = boringBackButton.Value,
                 debug = debugMode.Value,
+                animation_style = animationStyle.Value,
                 version = ModVersion,
             };
 
@@ -1363,6 +1464,9 @@ namespace ActionMenu
                 view.TriggerEvent<string, string>("LoadActionMenu", configTxt, settingsTxt);
                 cohtmlReadyState = 2;
                 cohtmlView.enabled = false; // hide it by default
+                menuOpen = false;
+                menuHidden = true;
+                if (menuRenderer != null) menuRenderer.enabled = false;
                 UpdateMenuScale(); // in case change avatar = new scale
             }
         }
@@ -1373,6 +1477,7 @@ namespace ActionMenu
             public bool flick_selection;
             public bool boring_back_button;
             public bool debug;
+            public string animation_style;
             public string version;
         }
 
@@ -1393,7 +1498,7 @@ namespace ActionMenu
             cohtmlReadyState = 0;
             OnAvatarAdvancedSettings(PlayerSetup.Instance);
             cohtmlView.View.Reload();
-            MelonCoroutines.Start(DelayedRestart(cohtmlView.enabled)); // yes it's a ugly hack but it works, right?
+            MelonCoroutines.Start(DelayedRestart(menuOpen)); // yes it's a ugly hack but it works, right?
             ToggleMenu(true);
         }
 
@@ -1426,6 +1531,13 @@ namespace ActionMenu
                 case MelonPreferences_Entry<float> e: {
                         if (float.TryParse(value, out float valueFloat))
                             e.Value = valueFloat;
+                        break;
+                    }
+
+                case MelonPreferences_Entry<string> e: {
+                        // Auswahl-Optionen: "0" kommt, wenn die schon aktive Option nochmal gedrueckt wird
+                        if (!string.IsNullOrEmpty(value) && value != "0")
+                            e.Value = value;
                         break;
                     }
 
@@ -1525,11 +1637,20 @@ namespace ActionMenu
         public override void OnUpdate()
         {
             if (dormant) return;
+
+            // Ist unser Menue versteckt, Animator, Flaeche und Ansicht jedes Frame aus lassen
+            // (CVRs Animator und das erste Laden der CVR-Menues schalten die Flaeche sonst wieder ein)
+            if (menuHidden)
+            {
+                if (menuAnimator != null && menuAnimator.enabled) menuAnimator.enabled = false;
+                if (menuRenderer != null && menuRenderer.enabled) menuRenderer.enabled = false;
+                if (cohtmlView != null && cohtmlView.enabled && cohtmlReadyState == 2) cohtmlView.enabled = false;
+            }
             if (menuTransform != null)
                 UpdatePositionToAnchor();
 
             // Parameter-Sync nur, solange das Menue offen ist
-            if (cohtmlReadyState == 2 && cohtmlView?.enabled == true && Time.unscaledTime >= nextParamPoll)
+            if (cohtmlReadyState == 2 && menuOpen && Time.unscaledTime >= nextParamPoll)
             {
                 nextParamPoll = Time.unscaledTime + paramPollInterval;
                 PollWatchedParams(force: false);
@@ -1538,7 +1659,7 @@ namespace ActionMenu
             if (KeyboardManager.Instance?.IsViewShown ?? true) return;
 
             // Tastatureingabe am Desktop an den Ziffernblock weitergeben (er ignoriert sie, wenn er zu ist)
-            if (!MetaPort.Instance.isUsingVr && cohtmlView?.enabled == true && cohtmlView.View != null)
+            if (!MetaPort.Instance.isUsingVr && menuOpen && cohtmlView?.View != null)
             {
                 var keys = Input.inputString;
                 if (Input.GetKeyDown(KeyCode.Escape)) keys += "\u001b";
@@ -1553,8 +1674,32 @@ namespace ActionMenu
             }
 
             if (Input.GetKeyDown(openKeyBinding.Value) && cohtmlView != null) {
-                ToggleMenu(!cohtmlView.enabled);
+                ToggleMenu(!menuOpen);
             }
+        }
+
+        // CVRs Menue-Animator sofort ans Ende seiner Oeffnen-Animation springen lassen,
+        // statt sie abzuspielen (er setzt dabei auch Shader-Werte, ohne die die Flaeche kaputt aussieht)
+        private static void SettleMenuAnimator()
+        {
+            if (menuAnimator == null) return;
+            menuAnimator.enabled = true;
+            menuAnimator.SetBool("Open", true);
+            if (menuAnimator.isActiveAndEnabled)
+                for (var i = 0; i < 4; ++i) menuAnimator.Update(5f); // mehrere Schritte, falls es Uebergaenge in Folge gibt
+        }
+
+        // Ansicht erst ausblenden, wenn die Schliess-Animation im Menue durch ist (und nicht inzwischen wieder geoeffnet wurde)
+        private System.Collections.IEnumerator HideAfterCloseAnimation(int token)
+        {
+            var until = Time.unscaledTime + closeAnimationSeconds;
+            while (Time.unscaledTime < until) yield return null;
+            if (token != closeToken || menuOpen) yield break;
+            menuHidden = true;
+            // Animator anhalten: sein "offen"-Zustand schaltet die Flaeche sonst jedes Frame wieder ein
+            if (menuAnimator != null) menuAnimator.enabled = false;
+            if (cohtmlView != null) cohtmlView.enabled = false;
+            if (menuRenderer != null) menuRenderer.enabled = false;
         }
 
         // ===== Zusammenspiel mit Dakys Original =====
@@ -1640,8 +1785,8 @@ namespace ActionMenu
             if (me == null || me.dormant || cohtmlView == null) return false;
             // Das Original ist nie offen und ruft deshalb immer mit show=true auf, wenn seine VR-Taste gedrueckt wird:
             // als Umschalten behandeln. show=false (z. B. CVR-Menue geht auf) heisst schliessen.
-            if (show) me.ToggleMenu(!cohtmlView.enabled, leftSide: leftSide);
-            else if (cohtmlView.enabled) me.ToggleMenu(false);
+            if (show) me.ToggleMenu(!menuOpen, leftSide: leftSide);
+            else if (menuOpen) me.ToggleMenu(false);
             return false; // Original nie selbst ausfuehren
         }
 
@@ -1778,6 +1923,20 @@ namespace ActionMenu
             return null;
         }
 
+        // Reflection-Ergebnisse merken: TypeByName und FindObjectOfType sind teuer und liessen das Oeffnen ruckeln
+        private static bool uiTypesLooked = false;
+        private static Type? cachedUiType, cachedPcmType;
+        private static UnityEngine.Object? cachedUiManager;
+        private static readonly Dictionary<Type, object> cachedInstances = new();
+
+        private static void LookUpUiTypes()
+        {
+            if (uiTypesLooked) return;
+            uiTypesLooked = true;
+            cachedUiType = AccessTools.TypeByName("ABI_RC.Core.UI.UIRework.CVRUIManagerBase");
+            cachedPcmType = AccessTools.TypeByName("ABI_RC.Systems.PlayerColors.PlayerColorsManager");
+        }
+
         private static object? GetStaticOrInstance(Type t, string member)
         {
             const BindingFlags all = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -1787,10 +1946,13 @@ namespace ActionMenu
             var isStatic = prop?.GetGetMethod(true)?.IsStatic ?? field?.IsStatic ?? false;
             if (!isStatic)
             {
-                var inst = (object?)t.GetProperty("Instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(null)
+                cachedInstances.TryGetValue(t, out var inst);
+                if (inst is UnityEngine.Object uo && uo == null) inst = null; // zerstoertes Unity-Objekt
+                inst ??= (object?)t.GetProperty("Instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(null)
                     ?? t.GetField("Instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(null);
                 if (inst == null && typeof(UnityEngine.Object).IsAssignableFrom(t)) inst = UnityEngine.Object.FindObjectOfType(t);
                 if (inst == null) return null;
+                cachedInstances[t] = inst;
                 target = inst;
             }
             return prop != null ? prop.GetValue(target) : field?.GetValue(target);
@@ -1807,8 +1969,11 @@ namespace ActionMenu
             // Einstellungen der CVR-UI (Colourize Menu, maximale Helligkeit des Hintergrunds)
             try
             {
-                var uiType = AccessTools.TypeByName("ABI_RC.Core.UI.UIRework.CVRUIManagerBase");
-                var ui = uiType != null && typeof(UnityEngine.Object).IsAssignableFrom(uiType) ? UnityEngine.Object.FindObjectOfType(uiType) : null;
+                LookUpUiTypes();
+                var uiType = cachedUiType;
+                if (cachedUiManager == null && uiType != null && typeof(UnityEngine.Object).IsAssignableFrom(uiType))
+                    cachedUiManager = UnityEngine.Object.FindObjectOfType(uiType);
+                var ui = cachedUiManager;
                 if (ui != null)
                 {
                     if (AccessTools.Field(uiType, "_colourizeMenu")?.GetValue(ui) is bool b) colourize = b;
@@ -1829,7 +1994,8 @@ namespace ActionMenu
                 string? p = null, a = null;
                 try
                 {
-                    var pcmType = AccessTools.TypeByName("ABI_RC.Systems.PlayerColors.PlayerColorsManager");
+                    LookUpUiTypes();
+                    var pcmType = cachedPcmType;
                     var colors = pcmType != null ? GetStaticOrInstance(pcmType, "CurrentColors") : null;
                     if (colors != null)
                     {

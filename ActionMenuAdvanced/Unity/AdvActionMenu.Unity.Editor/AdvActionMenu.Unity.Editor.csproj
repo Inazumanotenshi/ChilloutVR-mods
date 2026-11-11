@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>AdvActionMenu.Unity.Editor</AssemblyName>
+        <RootNamespace>AdvActionMenu.Unity.EditorTools</RootNamespace>
+        <!-- DLLs in einem Ordner "Editor" behandelt Unity automatisch als reine Editor-DLLs -->
+        <OutputPath>$(UnityOut)Editor\</OutputPath>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\AdvActionMenu.Unity\AdvActionMenu.Unity.csproj" Private="false" />
+        <Reference Include="$(UnityManaged)\UnityEngine\UnityEngine.CoreModule.dll" Private="false" />
+        <Reference Include="$(UnityManaged)\UnityEngine\UnityEngine.IMGUIModule.dll" Private="false" />
+        <Reference Include="$(UnityManaged)\UnityEngine\UnityEngine.ImageConversionModule.dll" Private="false" />
+        <Reference Include="$(UnityManaged)\UnityEngine\UnityEngine.TextRenderingModule.dll" Private="false" />
+        <Reference Include="$(UnityManaged)\UnityEngine\UnityEditor.CoreModule.dll" Private="false" />
+    </ItemGroup>
+</Project>

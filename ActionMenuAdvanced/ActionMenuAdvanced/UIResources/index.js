@@ -37,7 +37,27 @@ const HEX_R_IN = 60;        // Radius des Mittel-Hexagons
 const HEX_GAP = 6;          // Breite der Luecken zwischen Segmenten
 const HYSTERESIS_DEG = 3;   // so viele Grad muss man ins Nachbarsegment, bevor die Auswahl wechselt
 const NARROW_DEG = 24;      // ab hier schmaler: Namen werden gedreht
-const LABEL_FONT_MAX = 22, LABEL_FONT_MIN = 13;
+const LABEL_FONT_MAX = 22, LABEL_FONT_MIN = 12;
+const LABEL_CHAR_EM = 0.6;          // geschaetzte Zeichenbreite der fetten Noto Sans
+const LABEL_TWO_LINES_BELOW = 17;
+const LABEL_COMMON_MIN = 15;       // gemeinsame Schriftgroesse im Menue, ausser einzelne Namen brauchen weniger   // kleinere Schrift als das -> lieber zweizeilig
+
+// Namen in zwei moeglichst gleich lange Zeilen teilen: bevorzugt an Leerzeichen, sonst vor Grossbuchstaben
+function split_label(text) {
+	let best = null, best_len = Infinity;
+	const consider = (a, b) => {
+		const l1 = text.slice(0, a).trim(), l2 = text.slice(b).trim();
+		if (!l1 || !l2) return;
+		const m = Math.max(l1.length, l2.length);
+		if (m < best_len) { best_len = m; best = [l1, l2]; }
+	};
+	for (let k = 1; k < text.length; k++)
+		if (text[k] === ' ') consider(k, k + 1);
+	if (best) return best;
+	for (let k = 1; k < text.length; k++)
+		if (/[a-z0-9]/.test(text[k - 1]) && /[A-Z]/.test(text[k])) consider(k, k);
+	return best;
+}
 
 let accent_rgb = [169, 40, 0];     // CVR-Standard #a92800, wird von der Mod mit deiner UI-Farbe ueberschrieben
 let base_rgb = [34, 34, 34];       // CVR-Standard #222222, mit "Colourize Menu" deine erste Spielerfarbe (abgedunkelt)
@@ -112,6 +132,48 @@ function paint_segment(i) {
 
 function repaint_all_segments() { $segs.forEach((_, i) => paint_segment(i)); }
 
+function replay_open_animation() {
+	const style = settings?.animation_style ?? "spawn";
+	const seg_class = style === "fade" ? "seg-fade" : "seg-pop";
+	const $its = Array.from($items.childNodes);
+	const $others = [$inside, $joystick, document.getElementById("debug-footer")];
+	// alle Animationsklassen entfernen ...
+	$segs.forEach($s => $s.classList.remove("seg-pop", "seg-fade", "seg-close", "seg-fade-out"));
+	$its.forEach($it => $it.classList.remove("label-pop", "label-close"));
+	$others.forEach($el => $el.classList.remove("label-close"));
+	selected_sector = null;
+	repaint_all_segments();
+	// ... und im naechsten Frame wieder setzen, damit die Animation von vorn beginnt
+	requestAnimationFrame(() => {
+		const n = Math.max(1, $segs.length);
+		const stagger = Math.min(30, 220 / n);
+		$segs.forEach(($s, i) => { $s.style.animationDelay = (i * stagger).toFixed(0) + 'ms'; $s.classList.add(seg_class); });
+		$its.forEach(($it, i) => {
+			if ($it.classList.contains("center-item")) return;
+			$it.style.animationDelay = (i * stagger + 90).toFixed(0) + 'ms';
+			$it.classList.add("label-pop");
+		});
+	});
+}
+
+function play_close_animation() {
+	const n = Math.max(1, $segs.length);
+	const stagger = Math.min(15, 90 / n);
+	const close_class = settings?.animation_style === "fade" ? "seg-fade-out" : "seg-close";
+	$segs.forEach(($s, i) => {
+		$s.classList.remove("seg-pop");
+		$s.classList.remove("seg-fade");
+		$s.style.animationDelay = (i * stagger).toFixed(0) + 'ms';
+		$s.classList.add(close_class);
+	});
+	[$inside, $joystick, document.getElementById("debug-footer")].forEach($el => { $el.classList.remove("label-close"); $el.classList.add("label-close"); });
+	Array.from($items.childNodes).forEach($it => {
+		$it.classList.remove("label-pop");
+		$it.style.animationDelay = '0ms';
+		$it.classList.add("label-close");
+	});
+}
+
 // Joystick-Richtung -> Segment, mit Hysterese gegen Zittern an den Grenzen
 function pick_index(x, y, n, current) {
 	if (n <= 1) return 0;
@@ -162,7 +224,7 @@ function place_item_label($item, i, n) {
 	const $icon = $item.getElementsByClassName("icon")[0];
 	const $label = $item.getElementsByClassName("label")[0];
 	const text_len = ($label?.textContent ?? "").length || 1;
-	let x, y, rotate = 0, avail;
+	let x, y, rotate = 0, avail, thick = 999;
 
 	if (n <= 1) {
 		x = 0; y = -(HEX_R_IN + HEX_R_OUT * Math.cos(deg2rad(30))) / 2 - 20; avail = 300;
@@ -176,6 +238,7 @@ function place_item_label($item, i, n) {
 			rotate = c - 90;                 // Text laeuft entlang des Segments nach aussen
 			if (c > 180) rotate = c + 90;    // linke Seite: nicht auf dem Kopf
 			avail = 2 * Math.min(ro - rm - 10, rm - HEX_R_IN - 10);
+			thick = 2 * rm * Math.tan(deg2rad(w / 2)) - 4; // Platz quer zum Text
 		} else {
 			rm = ro * 0.64;
 			avail = 2 * rm * Math.tan(deg2rad(Math.min(w, 120) / 2)) - 14;
@@ -184,13 +247,35 @@ function place_item_label($item, i, n) {
 		x = rm * d[0]; y = rm * d[1];
 	}
 
-	// Icon nur, wenn vorhanden und genug Platz da ist
-	const show_icon = $icon && rotate === 0 && avail >= 80 && (n <= 1 || 360 / n >= 30);
-	if ($icon) $icon.style.display = show_icon ? 'block' : 'none';
+	// Icon, wenn vorhanden: Groesse passend zum Platz statt ab einer Grenze auszublenden
+	const icon_size = clamp(0, 56, avail * 0.55);
+	const show_icon = $icon && rotate === 0 && icon_size >= 28;
+	if ($icon) {
+		$icon.style.display = show_icon ? 'block' : 'none';
+		$icon.style.width = icon_size.toFixed(0) + 'px';
+		$icon.style.maxHeight = icon_size.toFixed(0) + 'px';
+	}
 
-	// Schrift so gross wie moeglich, ohne ueber das Segment zu ragen (Schaetzung: Zeichen * 0.55em)
-	const fs = clamp(LABEL_FONT_MIN, LABEL_FONT_MAX, avail / (text_len * 0.55));
-	if ($label) $label.style.fontSize = fs.toFixed(1) + 'px';
+	// Schrift so gross wie moeglich, ohne ueber das Segment zu ragen.
+	// Wird ein Name zu klein, wird er auf zwei Zeilen verteilt (an Leerzeichen oder vor Grossbuchstaben)
+	if ($label) {
+		const text = $label.textContent ?? "";
+		let fs = Math.min(avail / (Math.max(1, text.length) * LABEL_CHAR_EM), thick / 1.2);
+		const parts = fs < LABEL_TWO_LINES_BELOW ? split_label(text) : null;
+		if (parts) {
+			const fs2 = Math.min(avail / (Math.max(parts[0].length, parts[1].length) * LABEL_CHAR_EM), thick / 2.3);
+			if (fs2 > fs) {
+				$label.textContent = "";
+				$label.appendChild(document.createTextNode(parts[0]));
+				$label.appendChild(document.createElement("br"));
+				$label.appendChild(document.createTextNode(parts[1]));
+				fs = fs2;
+			}
+		}
+		fs = clamp(LABEL_FONT_MIN, LABEL_FONT_MAX, fs);
+		$label.style.fontSize = fs.toFixed(1) + 'px';
+		$item._label_fs = fs;
+	}
 
 	$item.style.left = (mid + x) + 'px';
 	$item.style.top = (mid + y) + 'px';
@@ -347,6 +432,7 @@ function handle_click_main() {
 			switch (action.control) {
 				case undefined:
 				case 'toggle': {
+					if (action.exclusive_option && item.enabled) break; // Auswahl: aktive Option bleibt aktiv
 					const new_value = item.enabled ? 0 : (action.value ?? 1);
 					engine.call("SetMelonPreference", action.parameter, String(new_value));
 					action_toggle = action?.toggle;
@@ -722,16 +808,32 @@ function load_menu(name) {
 
 	$items.innerHTML = '';
 	$segments.innerHTML = '';
+	[$inside, $joystick, document.getElementById("debug-footer")].forEach($el => $el.classList.remove("label-close")); // nach einer Schliess-Animation wieder zeigen
 	$segs = [];
 	selected_sector = null;
 
 	sectors = menu.length;
 
+	// Kacheln springen nacheinander auf (Welle im Uhrzeigersinn, insgesamt hoechstens ~0,3 s)
+	const style = settings.animation_style ?? "spawn";
+	const animate = style !== "disabled";
+	const seg_class = style === "fade" ? "seg-fade" : "seg-pop";
+	const stagger = Math.min(30, 220 / Math.max(1, sectors));
+
 	// Hexagon-Segmente bauen
 	menu.forEach((item, i) => {
 		const $s = document.createElement('div');
 		$s.className = "segment";
-		$s.style.clipPath = to_clip_path(segment_polygon(i, sectors));
+		const poly = segment_polygon(i, sectors);
+		$s.style.clipPath = to_clip_path(poly);
+		if (animate) {
+			// aus der eigenen Mitte heraus wachsen lassen
+			const cx = poly.reduce((a, p) => a + p[0], 0) / poly.length;
+			const cy = poly.reduce((a, p) => a + p[1], 0) / poly.length;
+			$s.style.transformOrigin = `${((mid + cx) / totalwidth * 100).toFixed(2)}% ${((mid + cy) / totalwidth * 100).toFixed(2)}%`;
+			$s.style.animationDelay = (i * stagger).toFixed(0) + 'ms';
+			$s.classList.add(seg_class);
+		}
 		$segments.appendChild($s);
 		$segs.push($s);
 	});
@@ -740,9 +842,22 @@ function load_menu(name) {
 	menu.forEach((item, i) => {
 		const $item = build_$item(item, i);
 		place_item_label($item, i, sectors);
-		trigger_animation($item, "fade-in-item");
+		if (animate) {
+			$item.style.animationDelay = (i * stagger + 90).toFixed(0) + 'ms';
+			$item.classList.add("label-pop");
+		}
 		$items.appendChild($item);
 	});
+
+	// einheitliche Schriftgroesse: alle so gross wie der kleinste Name (aber nicht winzig wegen eines einzelnen langen Namens)
+	const $labeled = Array.from($items.childNodes).filter($it => $it._label_fs);
+	if ($labeled.length) {
+		const common = Math.max(Math.min(...$labeled.map($it => $it._label_fs)), LABEL_COMMON_MIN);
+		$labeled.forEach($it => {
+			const $l = $it.getElementsByClassName("label")[0];
+			if ($l) $l.style.fontSize = Math.min($it._label_fs, common).toFixed(1) + 'px';
+		});
+	}
 	repaint_all_segments();
 
 	// Zurueck-Knopf in der Mitte
@@ -1127,10 +1242,11 @@ function load_action_menu(_menu, _settings) {
 	if (settings.flick_selection)
 		wait_joystick_recenter = true;
 
-	// Debug-Anzeige
+	// Version immer, "Debugging enabled" nur im Debug-Modus
 	const $dbg = document.getElementById("debug-footer");
-	$dbg.style.display = settings.debug ? 'block' : 'none';
+	$dbg.style.display = 'block';
 	$dbg.getElementsByClassName("debug-left")[0].innerHTML = "Version " + (settings.version ?? "?");
+	$dbg.getElementsByClassName("debug-right")[0].style.display = settings.debug ? 'block' : 'none';
 
 	// offene Widgets schliessen, falls das Menue neu geladen wird (z. B. Avatarwechsel)
 	["widget-radial", "widget-j2d", "widget-numpad"].forEach(id => document.getElementById(id).style.display = 'none');
@@ -1196,6 +1312,18 @@ engine.on('LoadActionMenu', (_content, _settings) => {
 
 engine.on('ToggleActionMenu', (show) => {
 	quickmenu_active = show;
+	// beim Schliessen offene Eingaben/Widgets abbrechen
+	if (!show) {
+		["widget-radial", "widget-j2d", "widget-numpad"].forEach(id => document.getElementById(id).style.display = 'none');
+		$actionmenu.style.display = 'block';
+		active_widget = null;
+	}
+	if ((settings?.animation_style ?? "spawn") === "disabled") return;
+	// beim Oeffnen nur die Animation neu starten (kein Neuaufbau, Icons muessen nicht neu geladen werden)
+	if (show && menu_name && menus[menu_name] && active_widget == null)
+		replay_open_animation();
+	// beim Schliessen ziehen sich die Kacheln nacheinander zusammen (die Mod blendet danach aus)
+	if (!show) play_close_animation();
 });
 
 engine.on('AccentColor', (hex) => set_accent_color(hex));

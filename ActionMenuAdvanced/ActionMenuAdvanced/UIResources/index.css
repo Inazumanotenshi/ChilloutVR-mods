@@ -530,3 +530,87 @@
     background-color: var(--accent);
     clip-path: polygon(50% 0%, 93.301% 25%, 93.301% 75%, 50% 100%, 6.699% 75%, 6.699% 25%);
 }
+
+
+/* ===== Aufspring-Animation der Kacheln ===== */
+#actionmenu .segment.seg-pop {
+    animation-name: seg_pop;
+    animation-duration: 0.34s;
+    animation-timing-function: cubic-bezier(0.2, 1.5, 0.4, 1);
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+}
+
+@keyframes seg_pop {
+    0% { transform: scale(0.5); opacity: 0; }
+    60% { opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Namen nur einblenden: ihr transform (Position, Drehung) darf die Animation nicht ueberschreiben */
+#actionmenu .items .item.label-pop {
+    animation-name: label_pop;
+    animation-duration: 0.22s;
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+}
+
+@keyframes label_pop {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+
+/* ===== Schliess-Animation ===== */
+#actionmenu .segment.seg-close {
+    animation-name: seg_close;
+    animation-duration: 0.12s;
+    animation-timing-function: ease-in;
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+}
+
+@keyframes seg_close {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.5); opacity: 0; }
+}
+
+#actionmenu .items .item.label-close, #actionmenu .inside.label-close, #actionmenu .joystick.label-close, #debug-footer.label-close {
+    animation-name: label_close;
+    animation-duration: 0.08s;
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+}
+
+@keyframes label_close {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+
+/* ===== Fade-Variante ===== */
+#actionmenu .segment.seg-fade {
+    animation-name: seg_fade_in;
+    animation-duration: 0.25s;
+    animation-timing-function: ease-out;
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+}
+
+@keyframes seg_fade_in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+#actionmenu .segment.seg-fade-out {
+    animation-name: seg_fade_out;
+    animation-duration: 0.12s;
+    animation-timing-function: ease-in;
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+}
+
+@keyframes seg_fade_out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
