@@ -58,19 +58,19 @@ namespace ActionMenu
         public bool? exclusive_option; // highlight a single option in current menu
         public float? duration; // in seconds (float)
 
-        // AdvActionMenu: Steuerungsart wurde per item_overrides bewusst festgelegt, nicht automatisch umstellen
+        // AdvActionMenu: control type was set on purpose via item_overrides, don't switch it automatically
         [JsonIgnore]
         public bool control_locked;
     }
 
-    // AdvActionMenu: einzelne Eigenschaften eines vorhandenen Eintrags aendern, ohne das ganze Menue zu ersetzen
+    // AdvActionMenu: change single properties of an existing item without replacing the whole menu
     public class ItemOverride
     {
         public string? icon;
         public string? control;
         public float? min_value;
         public float? max_value;
-        // true = Grenzen entfernen (unbegrenzte Zahleneingabe)
+        // true = remove limits (unlimited number input)
         public bool? no_limits;
     }
 
@@ -87,8 +87,8 @@ namespace ActionMenu
         // if it didn't exist, it is created
         [JsonProperty(PropertyName = "overwrites")]
         protected Menus overwrites = new();
-        // AdvActionMenu: menu name -> item name -> einzelne Aenderungen (Icon, Steuerungsart, Grenzen)
-        // Neue Eintraege im Avatar bleiben dadurch automatisch im Menue
+        // AdvActionMenu: menu name -> item name -> single changes (icon, control type, limits)
+        // New items of the avatar stay in the menu automatically this way
         [JsonProperty(PropertyName = "item_overrides")]
         protected Dictionary<string, Dictionary<string, ItemOverride>> itemOverrides = new();
 
@@ -147,7 +147,7 @@ namespace ActionMenu
                     continue;
                 for (var i = 0; i < items.Count; ++i)
                 {
-                    var item = items[i]; // struct: Kopie aendern und zurueckschreiben
+                    var item = items[i]; // struct: change a copy and write it back
                     if (item.name == null || !x.Value.TryGetValue(item.name, out var o) || o == null)
                         continue;
                     if (o.icon != null) item.icon = o.icon;

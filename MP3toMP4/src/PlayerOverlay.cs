@@ -17,6 +17,8 @@ namespace MP3toMP4
 
         internal static void OnPlayerUpdate(CVRVideoPlayer player)
         {
+            if (player == null)
+                return;
             int id = player.GetInstanceID();
             PlayerOverlay overlay;
             if (!Overlays.TryGetValue(id, out overlay))
@@ -24,7 +26,19 @@ namespace MP3toMP4
                 overlay = new PlayerOverlay(player);
                 Overlays[id] = overlay;
             }
-            overlay.Update();
+            if (overlay.Faulted)
+                return;
+
+            // Error brake per video player: an error never reaches the game. After a few errors the
+            // overlay switches itself off for this player; the video player itself keeps working normally.
+            try
+            {
+                overlay.Update();
+            }
+            catch (Exception e)
+            {
+                overlay.OnError(e);
+            }
         }
 
         internal static void Tick()
@@ -41,7 +55,14 @@ namespace MP3toMP4
             }
             foreach (int id in ToRemove)
             {
-                Overlays[id].Dispose();
+                try
+                {
+                    Overlays[id].Dispose();
+                }
+                catch
+                {
+                    // the player is gone anyway
+                }
                 Overlays.Remove(id);
                 ThumbnailUrls.Remove(id);
             }
@@ -84,8 +105,9 @@ namespace MP3toMP4
             foreach (var overlay in Overlays.Values)
             {
                 overlay.LayoutDirty = true;
+                overlay.CheckRenderer();
                 if (!MP3toMP4Mod.Enabled.Value)
-                    overlay.Deactivate(true);
+                    overlay.SafeDeactivate(true);
             }
         }
     }
@@ -95,10 +117,44 @@ namespace MP3toMP4
         internal readonly CVRVideoPlayer Player;
         internal bool LayoutDirty = true;
 
+        // Set after repeated errors: the overlay stays off for this video player until the world is reloaded.
+        internal bool Faulted;
+        private int _errorCount;
+        private const int MaxErrors = 3;
+
+        // Limits so the mod never attaches to more than a handful of audio sources.
+        private const int MaxTaps = 16;
+        private const int MaxFallbackSources = 8;
+        private bool _channelWarningLogged;
+
+        // Timing (debug mode only): measures how long drawing takes and logs it every few seconds.
+        // The frame rate is never changed automatically, only by the Max FPS setting.
+        private const int WarmupDraws = 15;
+        private const float TimingLogInterval = 5f;
+        private readonly System.Diagnostics.Stopwatch _drawWatch = new System.Diagnostics.Stopwatch();
+        private int _drawCount;
+        private double _timingSum;
+        private double _timingMax;
+        private int _timingSamples;
+        private float _nextTimingLog;
+
+        private string _lastDebug;
+        private bool _debugAudioLogged;
+
         private bool _active;
+        private float _activeSince;
+        private bool _hadAudio;
         private float _audioOnlySince = -1f;
 
+        // Drawing: on the GPU when possible (fast), otherwise on the CPU (old path, fallback).
+        private bool _gpuDecided;
+        private bool _useGpu;
+        private GpuCanvas _gpu;
         private PixelCanvas _canvas;
+        private int _cw, _ch;
+        private Texture2D _iconTex;
+        private readonly TextTexture _titleTex = new TextTexture();
+        private readonly TextTexture _timeTex = new TextTexture();
         private readonly Spectrum _spectrum = new Spectrum();
         private readonly List<AudioTap> _taps = new List<AudioTap>();
         private readonly List<AudioSource> _sourceScratch = new List<AudioSource>();
@@ -131,11 +187,80 @@ namespace MP3toMP4
 
         internal void Dispose()
         {
-            SetTapsEnabled(false);
+            SetTapsActive(false);
             if (_canvas != null)
             {
                 _canvas.Destroy();
                 _canvas = null;
+            }
+            if (_gpu != null)
+            {
+                _gpu.Destroy();
+                _gpu = null;
+            }
+            _titleTex.Destroy();
+            _timeTex.Destroy();
+        }
+
+        // Called when settings change: if Hardware Acceleration was switched, drop the old renderer.
+        internal void CheckRenderer()
+        {
+            if (!_gpuDecided)
+                return;
+            bool wantGpu = MP3toMP4Mod.HardwareAcceleration.Value && GpuCanvas.Available;
+            if (wantGpu == _useGpu)
+                return;
+            _gpuDecided = false;
+            if (_gpu != null)
+            {
+                _gpu.Destroy();
+                _gpu = null;
+            }
+            if (_canvas != null)
+            {
+                _canvas.Destroy();
+                _canvas = null;
+            }
+        }
+
+        internal void OnError(Exception e)
+        {
+            _errorCount++;
+            string name = SafePlayerName();
+            if (_errorCount == 1)
+                MP3toMP4Mod.Logger.Warning("Error in overlay for video player '" + name + "' (the game is not affected): " + e);
+
+            if (_errorCount >= MaxErrors)
+            {
+                Faulted = true;
+                SafeDeactivate(true);
+                MP3toMP4Mod.Logger.Warning("Overlay switched off for video player '" + name + "' after " + _errorCount +
+                                           " errors. The video player itself keeps working; reloading the world resets this.");
+            }
+        }
+
+        // Deactivate that can never throw (used from error handling and settings changes).
+        internal void SafeDeactivate(bool clear)
+        {
+            try
+            {
+                Deactivate(clear);
+            }
+            catch
+            {
+                _active = false;
+            }
+        }
+
+        private string SafePlayerName()
+        {
+            try
+            {
+                return Player != null ? Player.gameObject.name : "?";
+            }
+            catch
+            {
+                return "?";
             }
         }
 
@@ -145,6 +270,7 @@ namespace MP3toMP4
             IVideoPlayerPlayer vp = Player.VideoPlayer;
             if (rt == null || vp == null)
             {
+                Debug(rt == null ? "no screen texture (ProjectionTexture) set by the world" : "no video player backend yet");
                 Deactivate(false);
                 return;
             }
@@ -152,6 +278,7 @@ namespace MP3toMP4
             IVideoPlayerInfo info = vp.Info;
             if (info == null)
             {
+                Debug("video player has no info yet");
                 Deactivate(true);
                 return;
             }
@@ -163,6 +290,7 @@ namespace MP3toMP4
                            || state == VideoPlayerUtils.PlayerState.Seeking;
             if (!running)
             {
+                Debug("state " + state + ", nothing to do");
                 _audioOnlySince = -1f;
                 Deactivate(true);
                 return;
@@ -170,21 +298,28 @@ namespace MP3toMP4
 
             IVideoMetaData meta = info.VideoMetaData;
             bool hasVideo;
+            int width = 0, height = 0;
+            bool hasTexture = false;
             try
             {
-                hasVideo = meta != null
-                           && meta.GetVideoWidth() > 0
-                           && meta.GetVideoHeight() > 0
-                           && vp.GetVideoTexture() != null;
+                if (meta != null)
+                {
+                    width = meta.GetVideoWidth();
+                    height = meta.GetVideoHeight();
+                }
+                hasTexture = vp.GetVideoTexture() != null;
+                hasVideo = meta != null && width > 0 && height > 0 && hasTexture;
             }
-            catch
+            catch (Exception e)
             {
                 // Player not ready yet -> when in doubt, leave it alone.
                 hasVideo = true;
+                Debug("state " + state + ", could not read the video size (" + e.GetType().Name + "), leaving it alone");
             }
             if (hasVideo)
             {
                 // Real video: CVR already blitted the frame this update, stay out of the way.
+                Debug("state " + state + ", real video " + width + "x" + height + ", not taking over");
                 _audioOnlySince = -1f;
                 Deactivate(false);
                 return;
@@ -194,14 +329,24 @@ namespace MP3toMP4
             if (!_active)
             {
                 if (state != VideoPlayerUtils.PlayerState.Playing)
+                {
+                    Debug("state " + state + ", no picture (" + width + "x" + height + ", texture " + (hasTexture ? "yes" : "no") + "), waiting for Playing");
                     return;
+                }
                 if (!MP3toMP4Mod.ReplaceThumbnail.Value && HasThumbnail(meta))
+                {
+                    Debug("CVR shows its own thumbnail and Replace Thumbnail is off, not taking over");
                     return;
+                }
                 if (_audioOnlySince < 0f)
                     _audioOnlySince = now;
                 if (now - _audioOnlySince < Mathf.Max(0f, MP3toMP4Mod.DetectDelay.Value))
+                {
+                    Debug("playing without picture (" + width + "x" + height + ", texture " + (hasTexture ? "yes" : "no") + "), waiting for Detect Delay");
                     return;
+                }
                 Activate();
+                Debug("overlay active");
             }
 
             Render(rt, vp, info, meta, state == VideoPlayerUtils.PlayerState.Playing, now);
@@ -210,8 +355,17 @@ namespace MP3toMP4
         private void Activate()
         {
             _active = true;
+            _activeSince = Time.unscaledTime;
+            _hadAudio = false;
+            _debugAudioLogged = false;
+            _drawCount = 0;
+            _timingSum = 0;
+            _timingMax = 0;
+            _timingSamples = 0;
+            _nextTimingLog = 0f;
             _spectrum.Reset();
-            _nextTapScan = 0f;
+            // Attach to the audio sources only after playback has been running stable for a moment.
+            _nextTapScan = _activeSince + 0.5f;
             _nextDraw = 0f;
             _lastDrawTime = 0f;
             _nextTitleRefresh = 0f;
@@ -225,11 +379,11 @@ namespace MP3toMP4
                 return;
             _active = false;
             _spectrum.Reset();
-            SetTapsEnabled(false);
+            SetTapsActive(false);
             if (clear && Player != null)
             {
                 RenderTexture rt = Player.ProjectionTexture;
-                if (rt != null)
+                if (rt != null && rt.IsCreated())
                     Graphics.Blit(Texture2D.blackTexture, rt);
             }
         }
@@ -251,19 +405,55 @@ namespace MP3toMP4
         {
             EnsureCanvas(rt);
 
+            // The world's screen texture only exists on the GPU once something was drawn into it. If a world only
+            // ever plays audio (e.g. an MP3 on autoplay), CVR never draws into it, so create it ourselves.
+            if (!rt.IsCreated())
+            {
+                try
+                {
+                    rt.Create();
+                }
+                catch (Exception e)
+                {
+                    Debug("could not create the screen texture (" + e.GetType().Name + "), waiting");
+                    return;
+                }
+                if (!rt.IsCreated())
+                {
+                    Debug("screen texture (ProjectionTexture) not created, waiting");
+                    return;
+                }
+                Debug("screen texture (ProjectionTexture) was not created yet, created it");
+            }
+
             if (now >= _nextDraw)
             {
+                _drawWatch.Reset();
+                _drawWatch.Start();
+
                 float dt = _lastDrawTime > 0f ? Mathf.Clamp(now - _lastDrawTime, 0.001f, 0.25f) : 1f / 30f;
                 _lastDrawTime = now;
-                _nextDraw = now + 1f / Mathf.Clamp(MP3toMP4Mod.MaxFps.Value, 5, 90);
+                int fps = Mathf.Clamp(MP3toMP4Mod.MaxFps.Value, 5, 90);
+                _nextDraw = now + 1f / fps;
 
+                // Looking for audio sources is rare: only while no sound arrives, and then at most every 2 seconds.
                 if (now >= _nextTapScan)
                 {
-                    _nextTapScan = now + 1f;
-                    ScanTaps(vp);
+                    _nextTapScan = now + (_hadAudio ? 10f : 2f);
+                    if (!_hadAudio)
+                        ScanTaps(vp);
                 }
 
                 bool hasAudio = playing && GatherSamples();
+                if (hasAudio)
+                {
+                    _hadAudio = true;
+                    if (!_debugAudioLogged && MP3toMP4Mod.DebugLog.Value)
+                    {
+                        _debugAudioLogged = true;
+                        MP3toMP4Mod.Logger.Msg("[Debug] '" + SafePlayerName() + "': sound arrives, visualizer is fed");
+                    }
+                }
                 _spectrum.Process(hasAudio ? _mix : null, _sampleRate, dt);
 
                 if (now >= _nextTitleRefresh)
@@ -272,11 +462,49 @@ namespace MP3toMP4
                     _title = Font5x7.Sanitize(ResolveTitle(meta));
                 }
 
-                Draw(info, meta, now);
-                _canvas.Upload();
+                if (_useGpu)
+                {
+                    DrawGpu(info, meta, now);
+                }
+                else
+                {
+                    Draw(info, meta, now);
+                    _canvas.Upload();
+                }
+
+                _drawWatch.Stop();
+                LogTiming(_drawWatch.Elapsed.TotalMilliseconds, now, fps);
             }
 
-            Graphics.Blit(_canvas.Texture, rt);
+            Graphics.Blit(_useGpu ? (Texture)_gpu.Target : _canvas.Texture, rt);
+        }
+
+        // Debug mode only: every few seconds log the average and maximum drawing time.
+        // The first draws after the overlay starts are skipped (code compilation, icon loading, first upload).
+        private void LogTiming(double ms, float now, int fps)
+        {
+            _drawCount++;
+            if (!MP3toMP4Mod.DebugLog.Value || _drawCount <= WarmupDraws)
+                return;
+
+            _timingSum += ms;
+            _timingSamples++;
+            if (ms > _timingMax)
+                _timingMax = ms;
+
+            if (_nextTimingLog <= 0f)
+                _nextTimingLog = now + TimingLogInterval;
+            if (now < _nextTimingLog)
+                return;
+
+            double avg = _timingSum / Math.Max(1, _timingSamples);
+            MP3toMP4Mod.Logger.Msg("[Debug] '" + SafePlayerName() + "': drawing takes " + avg.ToString("0.00") + " ms on average (max " +
+                                   _timingMax.ToString("0.00") + " ms) at " + fps + " FPS, about " + (avg * fps / 1000.0 * 100.0).ToString("0.0") +
+                                   "% of one CPU core");
+            _timingSum = 0;
+            _timingMax = 0;
+            _timingSamples = 0;
+            _nextTimingLog = now + TimingLogInterval;
         }
 
         private void EnsureCanvas(RenderTexture rt)
@@ -289,13 +517,33 @@ namespace MP3toMP4
                 h = 2048;
             }
 
-            if (_canvas == null || _canvas.W != w || _canvas.H != h)
+            if (!_gpuDecided)
+            {
+                _gpuDecided = true;
+                _useGpu = MP3toMP4Mod.HardwareAcceleration.Value && GpuCanvas.Available;
+                if (MP3toMP4Mod.DebugLog.Value)
+                    MP3toMP4Mod.Logger.Msg("[Debug] '" + SafePlayerName() + "': drawing on the " + (_useGpu ? "GPU" : "CPU (fallback)"));
+            }
+
+            if (_useGpu)
+            {
+                if (_gpu == null || _gpu.W != w || _gpu.H != h || _gpu.Target == null)
+                {
+                    if (_gpu != null)
+                        _gpu.Destroy();
+                    _gpu = new GpuCanvas(w, h);
+                    LayoutDirty = true;
+                }
+            }
+            else if (_canvas == null || _canvas.W != w || _canvas.H != h)
             {
                 if (_canvas != null)
                     _canvas.Destroy();
                 _canvas = new PixelCanvas(w, h);
                 LayoutDirty = true;
             }
+            _cw = w;
+            _ch = h;
 
             if (LayoutDirty)
             {
@@ -306,7 +554,7 @@ namespace MP3toMP4
 
         private void BuildLayout()
         {
-            int W = _canvas.W, H = _canvas.H;
+            int W = _cw, H = _ch;
             float s = Mathf.Min(H / 360f, W / 640f);
             DisplayMode mode = MP3toMP4Mod.CurrentMode;
             bool showTitle = MP3toMP4Mod.ShowTitle.Value;
@@ -321,7 +569,8 @@ namespace MP3toMP4
             _titleScale = Mathf.Max(1, Mathf.RoundToInt(3f * s));
             int textH = 7 * _textScale;
 
-            _showIcon = mode != DisplayMode.Visualizer && IconStore.Icon != null;
+            _iconTex = _useGpu ? IconStore.Texture : null;
+            _showIcon = mode != DisplayMode.Visualizer && (_useGpu ? _iconTex != null : IconStore.Icon != null);
             _showBars = mode != DisplayMode.Icon;
 
             // Title at the top (leave one row for descenders)
@@ -367,7 +616,17 @@ namespace MP3toMP4
             }
             _iconCx = W * 0.5f;
 
-            // Pre-scale the icon once in high quality (slightly larger for pulsing).
+            // GPU: the texture has mipmaps, only the drawn width is needed. Text textures are rebuilt on demand.
+            if (_useGpu)
+            {
+                if (_showIcon)
+                    _iconDrawW = _iconTex.width >= _iconTex.height ? _iconSize : _iconSize * _iconTex.width / _iconTex.height;
+                _titleTex.Text = null;
+                _timeTex.Text = null;
+                return;
+            }
+
+            // CPU fallback: pre-scale the icon once in high quality (slightly larger for pulsing).
             _iconPrepared = null;
             if (_showIcon)
             {
@@ -525,6 +784,137 @@ namespace MP3toMP4
             }
         }
 
+        // Same picture as Draw(), but drawn by the GPU: a few dozen quads instead of ~230,000 CPU pixels.
+        private void DrawGpu(IVideoPlayerInfo info, IVideoMetaData meta, float now)
+        {
+            GpuCanvas g = _gpu;
+            if (g == null || !g.Begin())
+                return;
+            try
+            {
+                int W = g.W, H = g.H;
+
+                // Background: dark gradient
+                g.Gradient(0, 0, W, H, g.Col(new Color32(9, 9, 13, 255)), g.Col(new Color32(26, 23, 34, 255)));
+
+                float bass = MP3toMP4Mod.IconPulse.Value ? Mathf.Clamp01(_spectrum.Bass) : 0f;
+
+                // Glow behind the icon or the bars
+                float glowCy = _showIcon ? _iconCy : _barsY0 + _barsMaxH * 0.4f;
+                float radius = Mathf.Max(16f, _showIcon ? _iconSize * 0.9f : _barsMaxH * 0.9f);
+                g.Glow(_iconCx, glowCy, radius, g.Col(_accent, Mathf.Clamp01((0.10f + 0.40f * bass) * 1.2f)));
+
+                // Icon (pulses with the bass)
+                if (_showIcon && _iconTex != null)
+                {
+                    float scale = 1f + 0.06f * bass;
+                    float w = _iconDrawW * scale;
+                    float h = w * _iconTex.height / Mathf.Max(1, _iconTex.width);
+                    g.Image(_iconTex, _iconCx, _iconCy, w, h, Color.white);
+                }
+
+                // Bars
+                if (_showBars && _barsMaxH > 0)
+                {
+                    float[] bands = _spectrum.Bands;
+                    float[] peaks = _spectrum.Peaks;
+                    int n = bands.Length;
+                    if (n > 0)
+                    {
+                        float slot = (_barsX1 - _barsX0) / (float)n;
+                        int barW = Mathf.Max(1, Mathf.FloorToInt(slot * 0.68f));
+                        int capH = Mathf.Max(1, Mathf.RoundToInt(_barsMaxH / 60f));
+                        Color bottom = g.Col(_accent);
+                        Color cap = g.Col(_accentLight, 0.9f);
+                        Color reflection = g.Col(_accent, 0.22f);
+                        for (int i = 0; i < n; i++)
+                        {
+                            int x = _barsX0 + Mathf.RoundToInt(i * slot + (slot - barW) * 0.5f);
+                            int h = Mathf.Max(capH, Mathf.RoundToInt(bands[i] * _barsMaxH));
+                            // Color depends on the absolute height, like the CPU version.
+                            Color top = g.Col(Color32.Lerp(_accent, _accentLight, Mathf.Clamp01(h / (float)_barsMaxH)));
+                            g.Gradient(x, _barsY0, barW, h, bottom, top);
+
+                            if (peaks[i] > 0.02f)
+                                g.Rect(x, _barsY0 + Mathf.RoundToInt(peaks[i] * _barsMaxH) + capH, barW, capH, cap);
+
+                            if (_reflectMaxH > 2)
+                            {
+                                int rh = Mathf.Min(_reflectMaxH - 2, Mathf.RoundToInt(h * 0.3f));
+                                if (rh > 0)
+                                    g.Rect(x, _barsY0 - 2 - rh, barW, rh, reflection);
+                            }
+                        }
+                    }
+                }
+
+                // Title (texture rebuilt only when the text changes; scrolling happens via texture coordinates)
+                if (MP3toMP4Mod.ShowTitle.Value)
+                {
+                    string title = string.IsNullOrEmpty(_title) ? "Audio" : _title;
+                    _titleTex.Set(title, 30);
+                    int sc = _titleScale;
+                    int textW = _titleTex.TextPixels * sc;
+                    int totalW = _titleTex.TotalPixels * sc;
+                    int areaW = _titleX1 - _titleX0;
+                    float y = _titleY - sc;
+                    float h = 8 * sc;
+                    Color color = g.Col(_textColor);
+                    if (textW <= areaW)
+                    {
+                        g.ImageUV(_titleTex.Texture, _titleX0 + (areaW - textW) / 2, y, textW, h,
+                                  0f, _titleTex.TextPixels / (float)_titleTex.TotalPixels, color);
+                    }
+                    else
+                    {
+                        int offset = Mathf.FloorToInt(now * 20f * sc) % Mathf.Max(1, totalW);
+                        // Snap to whole font pixels so the pixel font stays crisp.
+                        offset -= offset % sc;
+                        float u0 = offset / (float)totalW;
+                        g.ImageUV(_titleTex.Texture, _titleX0, y, areaW, h, u0, u0 + areaW / (float)totalW, color);
+                    }
+                }
+
+                // Progress + time
+                if (MP3toMP4Mod.ShowProgress.Value)
+                {
+                    double time = 0, duration = 0;
+                    bool live = false;
+                    try
+                    {
+                        time = info.Time;
+                        if (meta != null)
+                        {
+                            duration = meta.GetDuration();
+                            live = meta.IsLivestream;
+                        }
+                    }
+                    catch
+                    {
+                        // some players throw while loading
+                    }
+
+                    bool hasDuration = !live && duration > 0.5 && !double.IsInfinity(duration) && !double.IsNaN(duration);
+                    g.Rect(_progX0, _progY, _progX1 - _progX0, _progThick, g.Col(_accent, 0.25f));
+                    if (hasDuration)
+                    {
+                        float p = Mathf.Clamp01((float)(time / duration));
+                        g.Rect(_progX0, _progY, Mathf.RoundToInt((_progX1 - _progX0) * p), _progThick, g.Col(_accentLight));
+                    }
+
+                    string timeText = live ? "LIVE  " + FormatTime(time) : hasDuration ? FormatTime(time) + " / " + FormatTime(duration) : FormatTime(time);
+                    _timeTex.Set(timeText, 0);
+                    int ts = _textScale;
+                    int tw = _timeTex.TextPixels * ts;
+                    g.ImageUV(_timeTex.Texture, (W - tw) / 2, _timeY - ts, tw, 8 * ts, 0f, 1f, g.Col(_dimText));
+                }
+            }
+            finally
+            {
+                g.End();
+            }
+        }
+
         private static string FormatTime(double seconds)
         {
             if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0)
@@ -572,7 +962,7 @@ namespace MP3toMP4
             return FileNameFromUrl(url);
         }
 
-        // Turns URL/HTML encoding back into plain text: "Mein%20Lied%20%C3%A4.mp3" -> "Mein Lied ä.mp3",
+        // Turns URL/HTML encoding back into plain text: "My%20Song%20%C3%A4.mp3" -> "My Song ä.mp3",
         // "Rock &amp; Roll" -> "Rock & Roll". Also handles double encoding like "%2520".
         private static string DecodeText(string text)
         {
@@ -671,25 +1061,41 @@ namespace MP3toMP4
 
             foreach (AudioSource src in _sourceScratch)
             {
+                if (_taps.Count >= MaxTaps)
+                    break;
                 if (src == null)
                     continue;
                 GameObject go = src.gameObject;
+                // Attached once per audio source and never removed or toggled afterwards.
                 AudioTap tap = go.GetComponent<AudioTap>();
                 if (tap == null)
                     tap = go.AddComponent<AudioTap>();
-                if (!_taps.Contains(tap))
+                if (tap != null && !_taps.Contains(tap))
                     _taps.Add(tap);
             }
 
-            SetTapsEnabled(true);
+            SetTapsActive(true);
+
+            if (MP3toMP4Mod.DebugLog.Value)
+                MP3toMP4Mod.Logger.Msg("[Debug] '" + SafePlayerName() + "': " + _sourceScratch.Count + " audio source(s) found, listening to " + _taps.Count);
         }
 
-        private void SetTapsEnabled(bool enabled)
+        // Debug output, only when the setting is on and only when the reason changes (no log spam).
+        private void Debug(string reason)
+        {
+            if (!MP3toMP4Mod.DebugLog.Value || reason == _lastDebug)
+                return;
+            _lastDebug = reason;
+            MP3toMP4Mod.Logger.Msg("[Debug] '" + SafePlayerName() + "': " + reason);
+        }
+
+        // Only flips a flag the audio thread reads; the components themselves are never enabled/disabled.
+        private void SetTapsActive(bool active)
         {
             foreach (AudioTap tap in _taps)
             {
-                if (tap != null && tap.enabled != enabled)
-                    tap.enabled = enabled;
+                if (tap != null)
+                    tap.Active = active;
             }
         }
 
@@ -732,15 +1138,22 @@ namespace MP3toMP4
             }
             catch (Exception e)
             {
-                MP3toMP4Mod.Logger.Warning("Audio channels not found: " + e.Message);
+                if (!_channelWarningLogged)
+                {
+                    _channelWarningLogged = true;
+                    MP3toMP4Mod.Logger.Warning("Audio channels not found, the bars may stay flat: " + e.Message);
+                }
             }
 
+            // Fallback: only a few audio sources directly under the video player, never the whole world.
             if (result.Count == 0)
             {
                 var children = new List<AudioSource>();
                 Player.GetComponentsInChildren(true, children);
                 foreach (AudioSource src in children)
                 {
+                    if (result.Count >= MaxFallbackSources)
+                        break;
                     if (src != null && !result.Contains(src))
                         result.Add(src);
                 }
@@ -753,7 +1166,7 @@ namespace MP3toMP4
             int used = 0;
             foreach (AudioTap tap in _taps)
             {
-                if (tap == null || !tap.enabled)
+                if (tap == null || !tap.Active)
                     continue;
                 if (!tap.CopyLatest(_tmp, 0.3))
                     continue;

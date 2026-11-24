@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <AssemblyName>AdvActionMenu</AssemblyName>
-        <!-- muss "ActionMenu" bleiben, sonst findet die Mod ihre eingebetteten UI-Dateien nicht -->
+        <!-- must stay "ActionMenu", otherwise the mod doesn't find its embedded UI files -->
         <RootNamespace>ActionMenu</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
@@ -32,5 +32,11 @@
         <EmbeddedResource Include="UIResources\icon_back_item.svg" />
         <EmbeddedResource Include="UIResources\icon_pages.svg" />
         <EmbeddedResource Include="UIResources\icon_debug.svg" />
+        <EmbeddedResource Include="UIResources\icon_mod.svg" />
+        <EmbeddedResource Include="UIResources\icon_clock.svg" />
+        <EmbeddedResource Include="UIResources\icon_fps.svg" />
+        <EmbeddedResource Include="UIResources\icon_avatar_height.svg" />
+        <EmbeddedResource Include="UIResources\qm_icon.png" />
+        <EmbeddedResource Include="UIResources\icon_mods.png" />
     </ItemGroup>
 </Project>

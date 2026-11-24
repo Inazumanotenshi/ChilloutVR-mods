@@ -79,24 +79,83 @@ namespace MP3toMP4
 
     internal static class IconStore
     {
-        private static bool _loaded;
+        private static bool _bytesLoaded;
+        private static byte[] _bytes;
+        private static bool _iconLoaded;
         private static PmImage _icon;
+        private static bool _textureLoaded;
+        private static Texture2D _texture;
 
-        // Custom icon possible: ChilloutVR/UserData/MP3toMP4/icon.png. Otherwise the embedded mp3.png.
+        // CPU version (premultiplied pixels), only used by the CPU fallback.
         internal static PmImage Icon
         {
             get
             {
-                if (!_loaded)
+                if (!_iconLoaded)
                 {
-                    _loaded = true;
-                    _icon = Load();
+                    _iconLoaded = true;
+                    _icon = PmImage.FromPng(Bytes);
                 }
                 return _icon;
             }
         }
 
-        private static PmImage Load()
+        // GPU version: texture with mipmaps, so it stays smooth when drawn smaller.
+        internal static Texture2D Texture
+        {
+            get
+            {
+                if (!_textureLoaded)
+                {
+                    _textureLoaded = true;
+                    _texture = LoadTexture(Bytes);
+                }
+                return _texture;
+            }
+        }
+
+        private static Texture2D LoadTexture(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+                return null;
+            try
+            {
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, true);
+                if (!ImageConversion.LoadImage(tex, bytes, false))
+                {
+                    UnityEngine.Object.Destroy(tex);
+                    return null;
+                }
+                tex.name = "MP3toMP4_Icon";
+                tex.hideFlags = HideFlags.HideAndDontSave;
+                tex.wrapMode = TextureWrapMode.Clamp;
+                tex.filterMode = FilterMode.Trilinear;
+                tex.anisoLevel = 4;
+                tex.Apply(true, true);
+                return tex;
+            }
+            catch (Exception e)
+            {
+                MP3toMP4Mod.Logger.Warning("Could not create the icon texture: " + e.Message);
+                return null;
+            }
+        }
+
+        // Custom icon possible: ChilloutVR/UserData/MP3toMP4/icon.png. Otherwise the embedded mp3.png.
+        private static byte[] Bytes
+        {
+            get
+            {
+                if (!_bytesLoaded)
+                {
+                    _bytesLoaded = true;
+                    _bytes = LoadBytes();
+                }
+                return _bytes;
+            }
+        }
+
+        private static byte[] LoadBytes()
         {
             try
             {
@@ -104,13 +163,13 @@ namespace MP3toMP4
                 string custom = Path.Combine(Path.Combine(Path.Combine(gameDir, "UserData"), "MP3toMP4"), "icon.png");
                 if (File.Exists(custom))
                 {
-                    var img = PmImage.FromPng(File.ReadAllBytes(custom));
-                    if (img != null)
+                    byte[] bytes = File.ReadAllBytes(custom);
+                    if (bytes.Length > 0)
                     {
                         MP3toMP4Mod.Logger.Msg("Loaded custom icon: " + custom);
-                        return img;
+                        return bytes;
                     }
-                    MP3toMP4Mod.Logger.Warning("Could not read custom icon, using the built-in one: " + custom);
+                    MP3toMP4Mod.Logger.Warning("Custom icon is empty, using the built-in one: " + custom);
                 }
             }
             catch (Exception e)
@@ -129,7 +188,7 @@ namespace MP3toMP4
                     }
                     var ms = new MemoryStream();
                     s.CopyTo(ms);
-                    return PmImage.FromPng(ms.ToArray());
+                    return ms.ToArray();
                 }
             }
             catch (Exception e)

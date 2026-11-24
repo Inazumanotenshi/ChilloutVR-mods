@@ -18,16 +18,17 @@ The mod makes **no network requests** and collects or sends **no data**.
 
 ## Requirements
 
-- ChilloutVR with **MelonLoader** (tested with MelonLoader 0.7.3).
-- No other mods, programs, avatar setup or hardware needed.
+- ChilloutVR with **MelonLoader** (tested with MelonLoader 0.7.3)
+- No other mods, programs, avatar setup or hardware needed
 - Optional: **UI Expansion Kit**. If installed, the settings also show up in **Main Menu → Mod Settings**
-  with a dropdown and sliders. Without it, everything still works through the Quick Menu.
+  with a dropdown and sliders. Without it, everything still works through the Quick Menu
+- Optional: **AdvActionMenu**. If installed, MP3toMP4 gets its own submenu with icons in the Action Menu
 
 ## Installation
 
-1. Download `MP3toMP4.dll`.
-2. Put it into `ChilloutVR\Mods`.
-3. Start the game.
+1. Download `MP3toMP4.dll`
+2. Put it into `ChilloutVR\Mods`
+3. Start the game
 
 That's it. The mod is a **single DLL**: the MP3 icon is embedded in it, so no extra files are needed.
 
@@ -41,8 +42,11 @@ When playback stops or ends, the screen is cleared to black.
 All settings can be changed in game and apply immediately:
 
 - **Quick Menu → Misc tab → MP3toMP4**: toggles, sliders, a selection list for the display mode and a
-  **Pick Color** button that opens ChilloutVR's own color picker.
-- **Main Menu → Mod Settings** (only with UI Expansion Kit): `Display Mode` is a dropdown, all numbers are sliders.
+  **Pick Color** button that opens ChilloutVR's own color picker
+- **Main Menu → Mod Settings** (only with UI Expansion Kit): `Display Mode` is a dropdown, all numbers are sliders
+- **Action Menu → Mods → MP3toMP4** (only with AdvActionMenu): sorted into Display Mode, Appearance (accent color as
+  red, green and blue radial controls, title, progress, pulse), Visualizer and Advanced, each entry with its own icon.
+  Bar Count and Max FPS are number inputs
 
 Changes are saved automatically to `UserData/MelonPreferences.cfg`, category `MP3toMP4`:
 
@@ -57,10 +61,12 @@ Changes are saved automatically to `UserData/MelonPreferences.cfg`, category `MP
 | `AutoGain` | true | Levels out quiet players. |
 | `AccentRed` / `AccentGreen` / `AccentBlue` | 217 / 108 / 192 | Bar color as RGB, 0 to 255 each (default matches the icon). |
 | `RenderWidth` | 640 | Internal resolution (256 to 1920). Higher = sharper, but more CPU. |
-| `MaxFps` | 30 | Visualizer frame rate (5 to 90). |
+| `MaxFps` | 30 | Visualizer frame rate (5 to 90). Limits how often the overlay is redrawn, independent of the game's frame rate. |
+| `HardwareAcceleration` | true | Draw the overlay on the GPU (much faster). Off = drawing on the CPU like in older versions, only needed if the overlay looks wrong. |
 | `DetectDelay` | 1.0 | Seconds without a picture before the mod takes over. |
 | `ReplaceThumbnail` | false | Take over even when ChilloutVR shows its own thumbnail (e.g. YouTube audio-only). |
 | `IconPulse` | true | Icon and glow pulse with the bass. |
+| `DebugLog` | false | Writes to the MelonLoader log what the mod sees on each video player, why it shows the overlay or not, and how long drawing takes. |
 
 ### Custom icon (optional)
 
@@ -70,23 +76,38 @@ and restart the game. A square image with a transparent background works best.
 ## Known limitations
 
 - The on-screen font only supports basic Latin characters (ASCII). German umlauts are shown as ae/oe/ue;
-  titles in other scripts (e.g. Japanese) appear as `?`.
-- If a video player outputs its sound without a Unity AudioSource, the bars stay flat; icon, title and time still work.
-- The title comes from ChilloutVR (yt-dlp metadata). If there is none, the file name from the URL is used.
+  titles in other scripts (e.g. Japanese) appear as `?`
+- If a video player outputs its sound without a Unity AudioSource, the bars stay flat; icon, title and time still work
+- The title comes from ChilloutVR (yt-dlp metadata). If there is none, the file name from the URL is used
 
 ## How it works
 
 1. **Hook (`Main.cs`)**: Harmony postfix on `CVRVideoPlayer.Update()`. That is where ChilloutVR copies the video
-   picture into the world's screen texture every frame. Audio-only media has no picture, so the screen stays black.
+   picture into the world's screen texture every frame. Audio-only media has no picture, so the screen stays black
 2. **Detection (`PlayerOverlay.cs`)**: If the player is playing for longer than `DetectDelay` seconds without a
-   video picture, the mod takes over. As soon as a real picture arrives, it steps aside again.
+   video picture, the mod takes over. As soon as a real picture arrives, it steps aside again
 3. **Audio capture (`AudioTap.cs`)**: Both video player backends (AVPro and LibVLC) output sound through Unity
-   AudioSources. A small component reads the finished samples from them (without modifying them).
-4. **Visualizer (`Spectrum.cs`)**: 2048-point FFT, logarithmic bands (40 Hz to 16 kHz), auto gain, smoothing and peak caps.
-5. **Drawing (`PixelCanvas.cs`, `Font5x7.cs`)**: Rendered on the CPU into a small texture that is copied onto the
-   video player screen. No shaders and no dependency on world assets.
-6. **Menus (`QuickMenu.cs`, `UixSettings.cs`)**: Quick Menu page built with ChilloutVR's own built-in menu system,
-   plus slider ranges for UI Expansion Kit's "Mod Settings" page when UI Expansion Kit is installed.
+   AudioSources. A small component reads the finished samples from them (without modifying them)
+4. **Visualizer (`Spectrum.cs`)**: 2048-point FFT, logarithmic bands (40 Hz to 16 kHz), auto gain, smoothing and peak caps
+5. **Drawing (`GpuCanvas.cs`, `Font5x7.cs`)**: Drawn on the GPU with Unity's built-in UI shader as a few simple
+   quads into a small texture that is copied onto the video player screen. Text is drawn with a pixel font only when
+   it changes. If the UI shader is ever missing, the mod falls back to drawing on the CPU (`PixelCanvas.cs`)
+6. **Menus (`QuickMenu.cs`, `UixSettings.cs`, `ActionMenuIntegration.cs`)**: Quick Menu page built with ChilloutVR's
+   own built-in menu system, slider ranges for UI Expansion Kit's "Mod Settings" page, and a submenu with icons
+   for AdvActionMenu (each only when that mod is installed)
+
+## Stability
+
+MP3toMP4 is built so that it can never take the game down with it:
+
+- Every error is caught. After a few errors on the same video player, the overlay switches itself off for
+  that player; after many errors in total, the mod stops touching video players until the game restarts.
+  The video players themselves keep working normally
+- The audio thread is never blocked. Reading the sound uses a non-blocking lock and the capture component is
+  attached only once per audio source, never toggled afterwards
+- At most 16 audio sources are used, and only those of the video player itself
+- With `DebugLog` on, the mod logs how long drawing the overlay takes, so you can pick a fitting `MaxFps` and `RenderWidth`
+- Settings are never saved while the game is starting
 
 ## Building from source
 
@@ -100,9 +121,9 @@ dotnet build -c Release
 `D:\SteamLibrary\steamapps\common\ChilloutVR`:
 `dotnet build -c Release -p:CVRPATH="C:\Path\To\ChilloutVR"`.
 
-The project references the game's own DLLs, MelonLoader and UI Expansion Kit (for the optional settings integration).
+The project references the game's own DLLs, MelonLoader, UI Expansion Kit and AdvActionMenu (for the optional menu integrations).
 
 ## Credits
 
 - The 5×7 pixel font in `Font5x7.cs` is based on the classic `glcdfont` from the
-  [Adafruit GFX Library](https://github.com/adafruit/Adafruit-GFX-Library) (BSD license).
+  [Adafruit GFX Library](https://github.com/adafruit/Adafruit-GFX-Library) (BSD license)

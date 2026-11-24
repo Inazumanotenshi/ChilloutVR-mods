@@ -1,4 +1,4 @@
-// AdvActionMenu - Inspector und Generator fuer die Override-JSON
+// AdvActionMenu - inspector and generator for the override JSON
 
 using System;
 using System.Collections;
@@ -170,7 +170,7 @@ namespace AdvActionMenu.Unity.EditorTools
             }
         }
 
-        // ----- Icons aus dem alten Generator (ActionMenuIcons.ActionMenuIconGenerator) uebernehmen -----
+        // ----- take over icons from the old generator (ActionMenuIcons.ActionMenuIconGenerator) -----
         void DrawImportOld()
         {
             var old = FindOldGenerator();
@@ -271,7 +271,7 @@ namespace AdvActionMenu.Unity.EditorTools
                 }
             }
 
-            // Zahlen-Eintraege: Steuerungsart und Grenzen (nur AdvActionMenu)
+            // number entries: control type and limits (AdvActionMenu only)
             if (!Advanced || !item.IsNumeric) return;
 
             using (new EditorGUILayout.HorizontalScope())
@@ -338,7 +338,7 @@ namespace AdvActionMenu.Unity.EditorTools
         void Generate()
         {
             var gen = G;
-            Rebuild(); // immer mit dem aktuellen Stand des Avatars
+            Rebuild(); // always with the current state of the avatar
 
             var guid = ResolveGuid(gen);
             if (string.IsNullOrEmpty(guid))
@@ -368,7 +368,7 @@ namespace AdvActionMenu.Unity.EditorTools
                 if (string.IsNullOrEmpty(jsonPath)) return;
             }
 
-            // PNG-Modus: Dateien in den UIResources-Ordner der jeweiligen Mod
+            // PNG mode: files go into the UIResources folder of the chosen mod
             string pngDir = null;
             if (gen.iconMode == Gen.IconMode.PngFiles)
             {
@@ -424,7 +424,7 @@ namespace AdvActionMenu.Unity.EditorTools
                 EditorUtility.RevealInFinder(jsonPath);
         }
 
-        // AdvActionMenu: nur Aenderungen pro Eintrag
+        // AdvActionMenu: only changes per entry
         string BuildItemOverrides(Func<string, string> iconFor, out int written)
         {
             var result = new Dictionary<string, Dictionary<string, AMItemOverride>>();
@@ -464,7 +464,7 @@ namespace AdvActionMenu.Unity.EditorTools
             return AMJson.ItemOverrides(result);
         }
 
-        // daky's Action Menu: ganze Menues ersetzen (wie der alte Generator)
+        // daky's Action Menu: replace whole menus (like the old generator)
         string BuildOverwrites(Func<string, string> iconFor, out int written)
         {
             var gen = G;

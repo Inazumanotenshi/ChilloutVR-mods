@@ -27,6 +27,8 @@
     <!-- The MP3 icon is compiled into the DLL so the mod works anywhere without extra files. -->
     <ItemGroup>
         <EmbeddedResource Include="src\mp3.png" LogicalName="MP3toMP4.mp3.png" />
+        <!-- Action Menu icons (PNG; SVG data URIs crash ChilloutVR's menu engine). Also inside the DLL. -->
+        <EmbeddedResource Include="src\icons\*.png" LogicalName="MP3toMP4.icons.%(Filename).png" />
     </ItemGroup>
 
     <ItemGroup>
@@ -41,6 +43,11 @@
         <!-- Optional: sliders/dropdown in UI Expansion Kit's "Mod Settings". The mod also runs without it. -->
         <Reference Include="UIExpansionKit">
             <HintPath>$(CVRPATH)\Mods\UIExpansionKit.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <!-- Optional: own submenu with icons in AdvActionMenu. The mod also runs without it. -->
+        <Reference Include="AdvActionMenu">
+            <HintPath>$(CVRPATH)\Mods\AdvActionMenu.dll</HintPath>
             <Private>False</Private>
         </Reference>
     </ItemGroup>

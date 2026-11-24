@@ -42,8 +42,9 @@ namespace Daky
             var i = cam.@interface;
             // adapted from PortableCameraInterface.AddAndGetHeader
             GameObject spacerObject = UnityEngine.Object.Instantiate(cam.spacerPrefab, i.settingsContentRow);
-            GameObject gameObject = UnityEngine.Object.Instantiate(cam.settingsHeadingPrefab, i.settingsContentRow);
-            var component = gameObject.GetComponent<PortableCameraSettingsHeader>();
+            // since Unity 6 the prefab is the header component itself, not a GameObject
+            var component = UnityEngine.Object.Instantiate(cam.settingsHeadingPrefab, i.settingsContentRow);
+            GameObject gameObject = component.gameObject;
             component.OriginType = "CameraStar";
             component.HeaderText.text = "Camera*";
             component.headerObject = gameObject;

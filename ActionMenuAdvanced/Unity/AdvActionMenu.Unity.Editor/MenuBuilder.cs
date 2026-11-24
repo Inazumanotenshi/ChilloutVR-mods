@@ -1,6 +1,6 @@
-// AdvActionMenu - Menuemodell und Nachbau der Menue-Erzeugung der Mod
-// Liest die Advanced Avatar Settings des CCK per Reflection (kein fester Bezug auf CCK-Versionen)
-// und baut daraus denselben Menuebaum, den die Mod im Spiel erzeugt.
+// AdvActionMenu - menu model and a copy of the mod's menu generation
+// Reads the CCK's Advanced Avatar Settings via reflection (not tied to a CCK version)
+// and builds the same menu tree from it that the mod creates in game.
 
 using System;
 using System.Collections;
@@ -39,7 +39,7 @@ namespace AdvActionMenu.Unity.EditorTools
         public string icon;
         public bool? enabled;
         public AMAction action;
-        // Typ aus dem CCK (Toggle, Dropdown, Slider, InputSingle ...), nur fuer den Inspector
+        // type from the CCK (Toggle, Dropdown, Slider, InputSingle ...), only for the inspector
         public string kind;
 
         public bool IsNumeric => kind == "Slider" || kind == "InputSingle";
@@ -67,7 +67,7 @@ namespace AdvActionMenu.Unity.EditorTools
 
         public static string PathJoin(params string[] parts) => string.Join(Sep.ToString(), parts);
 
-        // ----- Reflection-Helfer fuer das CCK -----
+        // ----- reflection helpers for the CCK -----
         const BindingFlags BF = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         static object Get(object o, string name)
@@ -91,7 +91,7 @@ namespace AdvActionMenu.Unity.EditorTools
         static float? F(object o) => o == null ? (float?)null : Convert.ToSingle(o, CultureInfo.InvariantCulture);
         static Vector2 V2(object o) => o is Vector2 v ? v : Vector2.zero;
 
-        // ----- Menue aufbauen (wie AvatarAdvancedSettingsToMenus + ReifyHierarchyInNames der Mod) -----
+        // ----- build the menu (like the mod's AvatarAdvancedSettingsToMenus + ReifyHierarchyInNames) -----
         public static AMMenus Build(GameObject avatarGo, bool advanced)
         {
             var m = new AMMenus();
@@ -111,7 +111,7 @@ namespace AdvActionMenu.Unity.EditorTools
             return Reify(m);
         }
 
-        // Emotes/Profiles haengt die Mod selbst ans Hauptmenue
+        // the mod adds Emotes/Profiles to the main menu itself
         public static List<(string key, AMItem item)> RootExtras(bool emotes, bool profiles)
         {
             var list = new List<(string, AMItem)>();
@@ -210,14 +210,14 @@ namespace AdvActionMenu.Unity.EditorTools
 
                 case "InputSingle":
                     item.action = advanced
-                        ? new AMAction // AdvActionMenu: Ziffernblock ohne Grenzen
+                        ? new AMAction // AdvActionMenu: number pad without limits
                         {
                             type = "avatar parameter",
                             parameter = machineName,
                             control = "number",
                             default_value = F(Get(Get(s, "inputSingleSettings"), "defaultValue")),
                         }
-                        : new AMAction // Original: 0-1-Slider
+                        : new AMAction // original: 0-1 slider
                         {
                             type = "avatar parameter",
                             parameter = machineName,
@@ -257,7 +257,7 @@ namespace AdvActionMenu.Unity.EditorTools
                 }
 
                 default:
-                    // Color, Joystick3D, InputVector3 unterstuetzt die Mod (noch) nicht
+                    // Color, Joystick3D, InputVector3 aren't supported by the mod (yet)
                     return null;
             }
 
@@ -281,7 +281,7 @@ namespace AdvActionMenu.Unity.EditorTools
             return (true, duration);
         }
 
-        // 1:1 Nachbau von ReifyHierarchyInNames der Mod
+        // 1:1 copy of the mod's ReifyHierarchyInNames
         static AMMenus Reify(AMMenus menus)
         {
             var m = new AMMenus();

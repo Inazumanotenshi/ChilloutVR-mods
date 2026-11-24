@@ -19,6 +19,8 @@ AdvActionMenu keeps everything you know from the original (avatar toggles, dropd
 - **Stable selection:** a few degrees of hysteresis stop the selection from jumping between two entries
 - **Desktop keyboard input** for the number pad (digits, Enter, Backspace, Escape)
 - **Works next to the original:** if daky's Action Menu is installed too, you choose which one to use and your VR bindings keep working
+- **Settings of other mods in the wheel:** pick up to 10 settings of any mod in the Quick Menu, they show up under "Mods"
+- **Compatible with mods made for the original:** mods that add their own menus through daky's Action Menu work with AdvActionMenu too
 - **Debug mode** with version display and verbose logging
 - **Fix:** the mouse cursor no longer stays unlocked after the menu was closed by opening the ChilloutVR menu (Esc or Tab)
 
@@ -79,6 +81,27 @@ Override files work exactly like in the original and are read from the same fold
 
 See daky's [documentation](https://github.com/dakyneko/DakyModsCVR/tree/main/ActionMenu) for the full format
 
+## Settings of other mods
+
+Many mods only have their settings in the ChilloutVR menu. With the mod slots you can put up to 10 of them into the Action Menu:
+
+1. Open the **Quick Menu** (Tab on desktop, the menu button in VR) and go to the **Misc tab**
+2. Under **AdvActionMenu** press **Action Menu mod slots**
+3. For each slot choose the **Mod** and then the **Setting**
+4. Open the Action Menu: the setting is under **Mods**, in its own entry for that mod
+
+- On/off settings become a **toggle**, selection lists become **options**, numbers get the **number pad** or a **slider** (switch it with **Type**)
+- For numbers you can set **Min** and **Max**. If the mod defines a range itself, it's used by default, **Reset range** brings it back
+- **Clear slot** removes a setting again, empty slots are not shown
+- If a mod already adds its own menu, the slot settings are added to it instead of a second entry
+- Changes are saved right away, so mods that only react when their settings are saved pick them up too
+- If a mod changes its setting itself, the wheel shows the new value
+- Only on/off, number and selection settings are offered. Text fields and key bindings can't be used in the wheel, hidden internal settings of a mod are left out
+
+### Mod icons
+
+Mods without an icon get a puzzle piece under "Mods". To use your own icon, put `<mod name>.svg` or `<mod name>.png` into `UserData\AdvActionMenu\ModIcons` (the folder is created on the first start). The name is either the mod's name as shown in the slot or the name of its section in `MelonPreferences.cfg`, for example `CVR Goes Brrr~.png` or `CVRGoesBrrr.png`
+
 ## Settings
 
 All settings are in the menu under the mod settings, or in `UserData\MelonPreferences.cfg` under `[AdvActionMenu]`
@@ -89,6 +112,7 @@ All settings are in the menu under the mod settings, or in `UserData\MelonPrefer
 | Resize | 0.5 | Size of the menu |
 | Reposition | 0.5, 0.5 | Move the menu off-center |
 | Rotation XY | 0, 0 | Tilt the menu |
+| Animation | Spawn | How the entries appear: Spawn, Fade or Disabled (submenu in the Action Menu) |
 | Flick select | off | Select an entry by flicking the stick and letting go, no trigger needed |
 | Eccentric 'Back' | off | Show the back button as a normal entry instead of the middle |
 | No crowded menus | off | Split very full avatar menus into pages |
@@ -109,6 +133,16 @@ With debug mode on, the version and "Debugging enabled" are shown below the menu
 - Which UI color is used
 
 <br clear="right">
+
+## For modders
+
+AdvActionMenu keeps daky's interface unchanged (`ActionMenu.ActionMenuMod.Lib`, `ActionMenu.API`), so you can add menus exactly like with the original. See daky's [documentation](https://github.com/dakyneko/DakyModsCVR/tree/main/ActionMenu) and the examples there
+
+- **Mods built for the original work without changes:** if daky's `ActionMenu.dll` is not installed, AdvActionMenu answers every request for the `ActionMenu` assembly itself
+- **Mod icon:** override `modIcon` in your `Lib` class. A file path, a URL or an inlined image (`data:image/png;base64,...`) all work. Without an icon your mod gets the puzzle piece
+- **Icons for your entries:** every `MenuItem` has its own `icon` field, same formats
+- **Number pad:** use `control = "number"` with optional `min_value` and `max_value`
+- **Settings:** if your mod applies settings in `OnPreferencesSaved`, that's fine, AdvActionMenu saves the MelonPreferences after a change in the wheel. Please don't save MelonPreferences during `OnInitializeMelon`: it triggers `OnPreferencesSaved` of all mods before they are loaded and can crash them
 
 ## Building
 

@@ -95,13 +95,23 @@ namespace MP3toMP4
 
             float sens = Mathf.Clamp(MP3toMP4Mod.Sensitivity.Value, 0.1f, 5f);
 
+            float rms = 0f;
             if (samples != null)
             {
                 double sum = 0;
                 for (int i = 0; i < FftSize; i++)
                     sum += samples[i] * samples[i];
-                float rms = (float)Math.Sqrt(sum / FftSize);
+                rms = (float)Math.Sqrt(sum / FftSize);
+                // Broken audio data (NaN/Infinity) is treated like silence.
+                if (float.IsNaN(rms) || float.IsInfinity(rms))
+                {
+                    samples = null;
+                    rms = 0f;
+                }
+            }
 
+            if (samples != null)
+            {
                 // Level: fast attack, slow release.
                 if (rms > _level)
                     _level = Mathf.Lerp(_level, rms, 0.5f);
@@ -131,7 +141,8 @@ namespace MP3toMP4
                     }
                     float mag = Mathf.Sqrt(max) * norm;
                     float db = 20f * Mathf.Log10(mag + 1e-7f) + _bandTilt[b];
-                    _targets[b] = Mathf.Clamp01((db + 50f) / 50f * sens);
+                    float target = Mathf.Clamp01((db + 50f) / 50f * sens);
+                    _targets[b] = float.IsNaN(target) ? 0f : target;
                 }
             }
             else
@@ -151,6 +162,8 @@ namespace MP3toMP4
                     cur = Mathf.Lerp(cur, t, attack);
                 else
                     cur = Mathf.Max(t, cur - dt * 1.6f);
+                if (float.IsNaN(cur) || float.IsInfinity(cur))
+                    cur = 0f;
                 Bands[b] = cur;
 
                 if (cur >= Peaks[b])

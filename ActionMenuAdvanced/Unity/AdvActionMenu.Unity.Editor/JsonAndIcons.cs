@@ -1,4 +1,4 @@
-// AdvActionMenu - JSON-Ausgabe (ohne Newtonsoft, kulturunabhaengige Zahlen) und Icon-Kodierung
+// AdvActionMenu - JSON output (without Newtonsoft, culture-independent numbers) and icon encoding
 
 using System;
 using System.Collections.Generic;
@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace AdvActionMenu.Unity.EditorTools
 {
-    // Aenderungen an einem einzelnen Eintrag (AdvActionMenu-Format "item_overrides")
+    // changes to a single entry (AdvActionMenu format "item_overrides")
     internal class AMItemOverride
     {
         public string icon;
@@ -89,7 +89,7 @@ namespace AdvActionMenu.Unity.EditorTools
             return "{ " + string.Join(", ", p) + " }";
         }
 
-        // daky's Format: ganze Menues ersetzen
+        // daky's format: replace whole menus
         public static string Overwrites(List<KeyValuePair<string, List<AMItem>>> menus)
         {
             var sb = new StringBuilder();
@@ -114,7 +114,7 @@ namespace AdvActionMenu.Unity.EditorTools
             return sb.ToString();
         }
 
-        // AdvActionMenu-Format: nur Aenderungen pro Eintrag, Menue -> Eintrag -> Aenderungen
+        // AdvActionMenu format: only changes per entry, menu -> entry -> changes
         public static string ItemOverrides(Dictionary<string, Dictionary<string, AMItemOverride>> menus)
         {
             var sb = new StringBuilder();
@@ -145,7 +145,7 @@ namespace AdvActionMenu.Unity.EditorTools
         }
     }
 
-    // Skaliert per GPU, funktioniert auch mit nicht-lesbaren Texturen
+    // scales on the GPU, also works with non-readable textures
     internal static class AMIcons
     {
         public static byte[] EncodePng(Texture2D src, int maxSize)
@@ -161,7 +161,7 @@ namespace AdvActionMenu.Unity.EditorTools
             int cw = w, ch = h;
             try
             {
-                // in Halbschritten verkleinern, damit grosse Texturen nicht flimmern
+                // downscale in halving steps so big textures don't alias
                 while (cw >= tw * 2 && ch >= th * 2)
                 {
                     cw /= 2; ch /= 2;

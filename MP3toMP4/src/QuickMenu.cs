@@ -66,12 +66,12 @@ namespace MP3toMP4
 
                 // Opens a selection list instead of a text field.
                 _modeButton = general.AddButton(ModeButtonText(), IconName, "Choose what is shown on the screen.");
-                _modeButton.OnPress += OpenModeSelection;
+                _modeButton.OnPress += () => MP3toMP4Mod.Safe(OpenModeSelection, "Display Mode");
 
                 // Accent color: CVR's color picker plus the three sliders directly on the page.
                 Category color = page.AddCategory("Accent Color", ModName);
                 Button pick = color.AddButton("Pick Color", IconName, "Open the color picker.");
-                pick.OnPress += OpenColorPicker;
+                pick.OnPress += () => MP3toMP4Mod.Safe(OpenColorPicker, "Pick Color");
                 _red = AddIntSlider(color, MP3toMP4Mod.AccentR, "Red", "Red part of the bar color.", 0, 255, MP3toMP4Mod.DefaultAccent.r);
                 _green = AddIntSlider(color, MP3toMP4Mod.AccentG, "Green", "Green part of the bar color.", 0, 255, MP3toMP4Mod.DefaultAccent.g);
                 _blue = AddIntSlider(color, MP3toMP4Mod.AccentB, "Blue", "Blue part of the bar color.", 0, 255, MP3toMP4Mod.DefaultAccent.b);
@@ -87,6 +87,8 @@ namespace MP3toMP4
                 AddIntSlider(advanced, MP3toMP4Mod.MaxFps, "Max FPS", "How often the visualizer is redrawn per second.", 5, 90, 30);
                 AddIntSlider(advanced, MP3toMP4Mod.RenderWidth, "Render Width", "Internal resolution in pixels. Higher = sharper, but more CPU.", 256, 1920, 640);
                 AddFloatSlider(advanced, MP3toMP4Mod.DetectDelay, "Detect Delay", "Seconds without a video frame before the mod takes over.", 0f, 5f, 1, 1f);
+                AddToggle(advanced, MP3toMP4Mod.HardwareAcceleration, "Hardware Acceleration", "Draw the overlay on the GPU (much faster). Turn off only if the overlay looks wrong.");
+                AddToggle(advanced, MP3toMP4Mod.DebugLog, "Debug Log", "Write to the MelonLoader log why the overlay is shown or not.");
 
                 MP3toMP4Mod.Logger.Msg("Quick Menu page added (Misc tab -> MP3toMP4).");
             }
@@ -99,40 +101,44 @@ namespace MP3toMP4
         private static void AddToggle(Category category, MelonPreferences_Entry<bool> entry, string name, string tooltip)
         {
             ToggleButton toggle = category.AddToggle(name, tooltip, entry.Value);
-            toggle.OnValueUpdated += value =>
+            toggle.OnValueUpdated += value => MP3toMP4Mod.Safe(() =>
             {
                 if (entry.Value != value)
                     entry.Value = value;
-            };
+            }, name);
         }
 
         private static SliderFloat AddIntSlider(Category category, MelonPreferences_Entry<int> entry, string name, string tooltip, int min, int max, int defaultValue)
         {
             SliderFloat slider = category.AddSlider(name, tooltip, entry.Value, min, max, 0, defaultValue, true);
-            slider.OnValueUpdated += value =>
+            slider.OnValueUpdated += value => MP3toMP4Mod.Safe(() =>
             {
+                if (float.IsNaN(value))
+                    return;
                 int rounded = Math.Max(min, Math.Min(max, (int)Math.Round(value)));
                 if (entry.Value != rounded)
                     entry.Value = rounded;
-            };
+            }, name);
             return slider;
         }
 
         private static void AddFloatSlider(Category category, MelonPreferences_Entry<float> entry, string name, string tooltip, float min, float max, int decimals, float defaultValue)
         {
             SliderFloat slider = category.AddSlider(name, tooltip, entry.Value, min, max, decimals, defaultValue, true);
-            slider.OnValueUpdated += value =>
+            slider.OnValueUpdated += value => MP3toMP4Mod.Safe(() =>
             {
+                if (float.IsNaN(value))
+                    return;
                 float clamped = Math.Max(min, Math.Min(max, value));
                 if (Math.Abs(entry.Value - clamped) > 0.0001f)
                     entry.Value = clamped;
-            };
+            }, name);
         }
 
         private static void OpenColorPicker()
         {
             Color current = MP3toMP4Mod.Accent;
-            QuickMenuAPI.OpenColourPicker(current, (picked, hex) =>
+            QuickMenuAPI.OpenColourPicker(current, (picked, hex) => MP3toMP4Mod.Safe(() =>
             {
                 int r = Mathf.Clamp(Mathf.RoundToInt(picked.r * 255f), 0, 255);
                 int g = Mathf.Clamp(Mathf.RoundToInt(picked.g * 255f), 0, 255);
@@ -145,7 +151,7 @@ namespace MP3toMP4
                 if (_red != null) _red.SetSliderValue(r);
                 if (_green != null) _green.SetSliderValue(g);
                 if (_blue != null) _blue.SetSliderValue(b);
-            }, true);
+            }, "Color Picker"), true);
         }
 
         private static int CurrentModeIndex()
@@ -162,14 +168,14 @@ namespace MP3toMP4
         private static void OpenModeSelection()
         {
             var selection = new MultiSelection("Display Mode", ModeLabels, CurrentModeIndex());
-            selection.OnOptionUpdated += index =>
+            selection.OnOptionUpdated += index => MP3toMP4Mod.Safe(() =>
             {
                 if (index < 0 || index >= ModeLabels.Length)
                     return;
                 MP3toMP4Mod.Mode.Value = (DisplayMode)index;
                 if (_modeButton != null)
                     _modeButton.ButtonText = ModeButtonText();
-            };
+            }, "Display Mode");
             QuickMenuAPI.OpenMultiSelect(selection);
         }
     }

@@ -2,5 +2,5 @@ bin/
 obj/
 .vs/
 *.user
-# fertige Unity-DLLs (Build-Ausgabe)
+# built Unity DLLs (build output)
 Editor/

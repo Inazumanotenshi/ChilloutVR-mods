@@ -2,7 +2,7 @@
     <PropertyGroup>
         <AssemblyName>AdvActionMenu.Unity.Editor</AssemblyName>
         <RootNamespace>AdvActionMenu.Unity.EditorTools</RootNamespace>
-        <!-- DLLs in einem Ordner "Editor" behandelt Unity automatisch als reine Editor-DLLs -->
+        <!-- Unity treats DLLs in a folder named "Editor" as editor-only automatically -->
         <OutputPath>$(UnityOut)Editor\</OutputPath>
     </PropertyGroup>
     <ItemGroup>

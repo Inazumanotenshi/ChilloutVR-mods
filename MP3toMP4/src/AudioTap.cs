@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Threading;
 using UnityEngine;
 
 namespace MP3toMP4
@@ -7,6 +8,12 @@ namespace MP3toMP4
     // Added to the GameObject of a video player AudioSource. Unity calls OnAudioFilterRead in
     // component order; since we are added after AVPro's AudioOutput / CVR's VLCAudioOutput,
     // we see the finished samples. The data is NOT modified.
+    //
+    // Safety rules (OnAudioFilterRead runs on Unity's audio thread):
+    // - The audio thread never waits: if the main thread holds the buffer, this block is simply skipped
+    // - The component is attached once and never enabled/disabled afterwards (that would change the DSP chain);
+    //   instead the volatile flag Active is checked
+    // - Every exception is swallowed, an exception on the audio thread must never reach Unity
     internal sealed class AudioTap : MonoBehaviour
     {
         private const int Size = 8192; // power of two
@@ -18,40 +25,54 @@ namespace MP3toMP4
         private int _filled;
         private long _lastStamp;
 
+        // Set from the main thread. When false the audio callback returns immediately.
+        internal volatile bool Active;
+
         private void OnAudioFilterRead(float[] data, int channels)
         {
-            if (data == null || channels <= 0)
+            if (!Active || data == null || channels <= 0)
                 return;
 
-            int frames = data.Length / channels;
-            float inv = 1f / channels;
-
-            lock (_lock)
+            // Never block the audio thread.
+            if (!Monitor.TryEnter(_lock))
+                return;
+            try
             {
+                int frames = data.Length / channels;
+                float inv = 1f / channels;
                 int i = 0;
                 for (int f = 0; f < frames; f++)
                 {
                     float sum = 0f;
                     for (int c = 0; c < channels; c++, i++)
                         sum += data[i];
-                    _ring[_write] = sum * inv;
+                    float s = sum * inv;
+                    // Drop NaN/Infinity so they can't poison the FFT.
+                    if (float.IsNaN(s) || float.IsInfinity(s))
+                        s = 0f;
+                    _ring[_write] = s;
                     _write = (_write + 1) & Mask;
                 }
                 _filled = Math.Min(Size, _filled + frames);
                 _lastStamp = Stopwatch.GetTimestamp();
             }
+            catch
+            {
+                // never let anything escape on the audio thread
+            }
+            finally
+            {
+                Monitor.Exit(_lock);
+            }
         }
 
-        private void OnDisable()
-        {
-            lock (_lock)
-                _filled = 0;
-        }
-
-        // Copies the latest dst.Length mono samples. false if nothing recent is available.
+        // Copies the latest dst.Length mono samples. false if nothing recent is available
+        // or the audio thread is writing right now (then this frame is simply skipped).
         internal bool CopyLatest(float[] dst, double maxAgeSeconds)
         {
-            lock (_lock)
+            if (!Monitor.TryEnter(_lock))
+                return false;
+            try
             {
                 if (_filled < dst.Length)
                     return false;
@@ -61,8 +82,12 @@ namespace MP3toMP4
                 int start = (_write - dst.Length) & Mask;
                 for (int i = 0; i < dst.Length; i++)
                     dst[i] = _ring[(start + i) & Mask];
+                return true;
             }
-            return true;
+            finally
+            {
+                Monitor.Exit(_lock);
+            }
         }
     }
 }

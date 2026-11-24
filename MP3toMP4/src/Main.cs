@@ -6,9 +6,9 @@ using HarmonyLib;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(MP3toMP4.MP3toMP4Mod), "MP3toMP4", "0.2.0", "Inazumanotenshi", null)]
+[assembly: MelonInfo(typeof(MP3toMP4.MP3toMP4Mod), "MP3toMP4", "0.3.0", "Inazumanotenshi", null)]
 [assembly: MelonGame("ChilloutVR", "ChilloutVR")]
-[assembly: MelonOptionalDependencies(new[] { "UIExpansionKit" })]
+[assembly: MelonOptionalDependencies(new[] { "UIExpansionKit", "AdvActionMenu" })]
 
 namespace MP3toMP4
 {
@@ -55,6 +55,10 @@ namespace MP3toMP4
         internal static MelonPreferences_Entry<bool> ReplaceThumbnail;
         // Icon and glow pulse with the bass.
         internal static MelonPreferences_Entry<bool> IconPulse;
+        // Writes to the log what the mod sees on each video player (only when something changes).
+        internal static MelonPreferences_Entry<bool> DebugLog;
+        // Draw on the GPU (fast). Off = old CPU drawing, e.g. if the overlay looks wrong on some PC.
+        internal static MelonPreferences_Entry<bool> HardwareAcceleration;
 
         internal static DisplayMode CurrentMode = DisplayMode.Both;
         internal static readonly Color32 DefaultAccent = new Color32(217, 108, 192, 255);
@@ -97,6 +101,10 @@ namespace MP3toMP4
                 "Take over even when CVR shows a thumbnail (e.g. YouTube in audio-only mode).", false, false, null);
             IconPulse = _category.CreateEntry("IconPulse", true, "Icon Pulse",
                 "Icon and glow pulse with the bass.", false, false, null);
+            HardwareAcceleration = _category.CreateEntry("HardwareAcceleration", true, "Hardware Acceleration",
+                "Draw the overlay on the GPU (much faster). Turn off only if the overlay looks wrong; it is then drawn on the CPU.", false, false, null);
+            DebugLog = _category.CreateEntry("DebugLog", false, "Debug Log",
+                "Write to the MelonLoader log what the mod sees on each video player and why it shows the overlay or not.", false, false, null);
 
             MigrateLegacyAccent();
             ParseSettings();
@@ -117,6 +125,8 @@ namespace MP3toMP4
             MaxFps.OnEntryValueChanged.Subscribe((oldValue, newValue) => RequestSave(), 0, false);
             DetectDelay.OnEntryValueChanged.Subscribe((oldValue, newValue) => RequestSave(), 0, false);
             ReplaceThumbnail.OnEntryValueChanged.Subscribe((oldValue, newValue) => RequestSave(), 0, false);
+            DebugLog.OnEntryValueChanged.Subscribe((oldValue, newValue) => RequestSave(), 0, false);
+            HardwareAcceleration.OnEntryValueChanged.Subscribe((oldValue, newValue) => OnSettingsChanged(), 0, false);
 
             // Quick Menu page via ChilloutVR's built-in UILib (no extra mod needed).
             QuickMenu.Init();
@@ -124,6 +134,10 @@ namespace MP3toMP4
             // Sliders/dropdown in UI Expansion Kit's "Mod Settings", if installed.
             if (IsAssemblyLoaded("UIExpansionKit"))
                 RegisterUix();
+
+            // Own submenu with icons in AdvActionMenu, if installed.
+            if (IsAssemblyLoaded("AdvActionMenu"))
+                RegisterActionMenu();
 
             Logger.Msg("MP3toMP4 loaded.");
         }
@@ -142,6 +156,21 @@ namespace MP3toMP4
             }
         }
 
+        // Kept in its own method so AdvActionMenu types are only resolved when it is installed.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RegisterActionMenu()
+        {
+            try
+            {
+                ActionMenuIntegration.Register();
+                Logger.Msg("Action Menu entry added (AdvActionMenu -> Mods -> MP3toMP4).");
+            }
+            catch (Exception e)
+            {
+                Logger.Warning("Could not add the Action Menu entry: " + e.Message);
+            }
+        }
+
         private static bool IsAssemblyLoaded(string name)
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -154,13 +183,50 @@ namespace MP3toMP4
 
         public override void OnUpdate()
         {
-            OverlayManager.Tick();
+            try
+            {
+                OverlayManager.Tick();
+            }
+            catch (Exception e)
+            {
+                LogOnce(ref _tickErrorLogged, "Cleanup error (the game is not affected): " + e.Message);
+            }
 
             // Save changes made in the menu a moment after the last slider movement.
             if (_saveAt > 0f && Time.unscaledTime >= _saveAt)
             {
                 _saveAt = 0f;
-                _category.SaveToFile(false);
+                try
+                {
+                    _category.SaveToFile(false);
+                }
+                catch (Exception e)
+                {
+                    Logger.Warning("Could not save settings: " + e.Message);
+                }
+            }
+        }
+
+        private static bool _tickErrorLogged;
+
+        internal static void LogOnce(ref bool flag, string message)
+        {
+            if (flag)
+                return;
+            flag = true;
+            Logger.Warning(message);
+        }
+
+        // Runs a menu callback without ever letting an exception escape into the menu mod or the game.
+        internal static void Safe(Action action, string what)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception e)
+            {
+                Logger.Warning("Menu action '" + what + "' failed (the game is not affected): " + e.Message);
             }
         }
 
@@ -173,15 +239,25 @@ namespace MP3toMP4
 
         private static void OnSettingsChanged()
         {
-            ParseSettings();
-            OverlayManager.SettingsChanged();
+            try
+            {
+                ParseSettings();
+                OverlayManager.SettingsChanged();
+            }
+            catch (Exception e)
+            {
+                Logger.Warning("Applying settings failed (the game is not affected): " + e.Message);
+            }
             RequestSave();
         }
 
         private static void MigrateLegacyAccent()
         {
+            // Nothing to do on normal starts: the old entry only has a value in configs from version 0.1.0.
+            bool hasOldValue = !string.IsNullOrEmpty(_legacyAccentHex.Value);
+
             Color32 old;
-            if (TryParseHex(_legacyAccentHex.Value, out old))
+            if (hasOldValue && TryParseHex(_legacyAccentHex.Value, out old))
             {
                 AccentR.Value = old.r;
                 AccentG.Value = old.g;
@@ -190,9 +266,13 @@ namespace MP3toMP4
             }
 
             // Remove the old text entry so it doesn't show up as a text field in settings menus.
+            // This only changes the in-memory list; nothing is written to disk here.
             _category.DeleteEntry("AccentColor");
             _legacyAccentHex = null;
-            _category.SaveToFile(false);
+
+            // Never save during OnInitializeMelon(): saving fires OnPreferencesSaved for ALL mods, and some of
+            // them are not initialized yet at this point and crash (e.g. AdultToyAPI, CVRGoesBrrr).
+            // The migrated values are written with the next settings change or when the game quits.
         }
 
         private static void ParseSettings()
@@ -227,11 +307,15 @@ namespace MP3toMP4
     [HarmonyPatch(typeof(CVRVideoPlayer), "Update")]
     internal static class CVRVideoPlayerUpdatePatch
     {
-        private static bool _errorLogged;
+        // Global emergency stop: if errors keep coming anyway, the mod stops touching video players
+        // for the rest of the session. The game and the video players keep working normally.
+        private const int MaxErrors = 20;
+        private static int _errors;
+        private static bool _stopped;
 
         private static void Postfix(CVRVideoPlayer __instance)
         {
-            if (!MP3toMP4Mod.Enabled.Value)
+            if (_stopped || !MP3toMP4Mod.Enabled.Value)
                 return;
             try
             {
@@ -239,10 +323,14 @@ namespace MP3toMP4
             }
             catch (Exception e)
             {
-                if (_errorLogged)
-                    return;
-                _errorLogged = true;
-                MP3toMP4Mod.Logger.Error("Error in video player overlay (logged only once): " + e);
+                _errors++;
+                if (_errors == 1)
+                    MP3toMP4Mod.Logger.Error("Error in video player overlay (the game is not affected): " + e);
+                if (_errors >= MaxErrors)
+                {
+                    _stopped = true;
+                    MP3toMP4Mod.Logger.Error("Too many errors, MP3toMP4 stops touching video players until the game restarts.");
+                }
             }
         }
     }

@@ -1,7 +1,7 @@
-// AdvActionMenu - Action Menu Generator (Daten-Komponente)
-// Liegt auf dem Avatar und merkt sich Icons und Einstellungen pro Menuepunkt.
-// Der eigentliche Generator steckt in AdvActionMenu.Unity.Editor.dll.
-// Beim Upload ignoriert das CCK diese Komponente.
+// AdvActionMenu - Action Menu Generator (data component)
+// Sits on the avatar and stores icons and settings per menu entry.
+// The actual generator lives in AdvActionMenu.Unity.Editor.dll.
+// The CCK ignores this component on upload.
 
 using System;
 using System.Collections.Generic;
@@ -15,19 +15,19 @@ namespace AdvActionMenu.Unity
     {
         public enum TargetMod
         {
-            ActionMenu,    // daky's original Action Menu: ganze Menues per "overwrites"
-            AdvActionMenu, // AdvActionMenu: nur Aenderungen per "item_overrides", plus Zahleneingabe und Grenzen
+            ActionMenu,    // daky's original Action Menu: whole menus via "overwrites"
+            AdvActionMenu, // AdvActionMenu: only changes via "item_overrides", plus number input and limits
         }
 
         public enum IconMode
         {
-            EmbedBase64, // Icons stecken als data:-URI in der JSON (empfohlen)
-            PngFiles,    // Icons als PNG-Dateien im UIResources-Ordner der Mod
+            EmbedBase64, // icons are embedded as data: URI in the JSON (recommended)
+            PngFiles,    // icons as PNG files in the mod's UIResources folder
         }
 
         public enum NumberControl
         {
-            Auto,      // wie die Mod es selbst entscheidet (Slider bleibt Slider, Input Single wird Ziffernblock)
+            Auto,      // like the mod decides itself (slider stays slider, Input Single becomes number pad)
             Slider,
             NumberPad,
         }
@@ -35,7 +35,7 @@ namespace AdvActionMenu.Unity
         [Serializable]
         public class Entry
         {
-            [Tooltip("Menue-Pfad des Eintrags, z. B. avatar/Clothes/Hat")]
+            [Tooltip("Menu path of the entry, e.g. avatar/Clothes/Hat")]
             public string path;
             public Texture2D icon;
             public NumberControl control = NumberControl.Auto;
@@ -48,10 +48,10 @@ namespace AdvActionMenu.Unity
 
         public TargetMod target = TargetMod.AdvActionMenu;
 
-        [Tooltip("Leer = das Objekt, auf dem diese Komponente liegt")]
+        [Tooltip("Empty = the object this component is on")]
         public GameObject avatar;
 
-        [Tooltip("Leer = ID aus der CVRAssetInfo des Avatars")]
+        [Tooltip("Empty = ID from the avatar's CVRAssetInfo")]
         public string avatarGuidOverride = "";
 
         public IconMode iconMode = IconMode.EmbedBase64;
@@ -59,13 +59,13 @@ namespace AdvActionMenu.Unity
         [Range(32, 512)]
         public int iconSize = 128;
 
-        [Tooltip("Nur Action Menu: Emotes-Link behalten, wenn das Hauptmenue ueberschrieben wird")]
+        [Tooltip("Action Menu only: keep the Emotes link when the main menu is overwritten")]
         public bool keepEmotesLink = true;
 
-        [Tooltip("Nur Action Menu: Profiles-Link behalten, wenn das Hauptmenue ueberschrieben wird")]
+        [Tooltip("Action Menu only: keep the Profiles link when the main menu is overwritten")]
         public bool keepProfilesLink = true;
 
-        [Tooltip("Nur Action Menu: alle Menues schreiben, nicht nur die mit Icons")]
+        [Tooltip("Action Menu only: write all menus, not only the ones with icons")]
         public bool writeAllMenus;
 
         public List<Entry> entries = new List<Entry>();
@@ -99,7 +99,7 @@ namespace AdvActionMenu.Unity
             Cleanup();
         }
 
-        // leere Eintraege entfernen, damit die Liste uebersichtlich bleibt
+        // remove empty entries so the list stays tidy
         public void Cleanup() => entries.RemoveAll(e => e == null || string.IsNullOrEmpty(e.path) || e.IsEmpty);
     }
 }

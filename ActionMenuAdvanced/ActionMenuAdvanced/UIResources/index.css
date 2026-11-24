@@ -5,21 +5,21 @@
     src: url("Montserrat-Regular.ttf");
 }
 
-/* CVRs eigene Schrift, liegt im Spiel unter UIResources/Fonts */
+/* CVR's own font, shipped with the game in UIResources/Fonts */
 @font-face {
     font-family: "AMA-NotoSans";
     src: url("../Fonts/NotoSans-Bold.ttf");
 }
 
 :root {
-    --accent: rgba(169, 40, 0, 1);         /* wird von der Mod auf deine CVR-UI-Farbe gesetzt */
+    --accent: rgba(169, 40, 0, 1);         /* set by the mod to your CVR UI color */
     --accent-soft: rgba(169, 40, 0, 0.88);
-    --hex-base: rgba(34, 34, 34, 0.75);    /* wie CVR-Panels */
+    --hex-base: rgba(34, 34, 34, 0.75);    /* like CVR panels */
     --hex-hover: rgba(34, 34, 34, 1);
     --hex-center: rgba(24, 24, 24, 0.9);
 }
 
-/* Zeichenflaeche ist 500x630: oben 130px frei fuer die Textbox, darunter das 500x500 Menue */
+/* canvas is 500x630: 130px at the top for the text box, the 500x500 menu below */
 #stage {
     position: absolute;
     left: 0px;
@@ -74,7 +74,7 @@
     z-index: 10;
 }
 
-/* Widgets decken das Menue darunter fast ganz ab */
+/* widgets cover almost the whole menu below */
 #widget-radial, #widget-j2d {
     --hex-base: var(--hex-hover);
 }
@@ -144,7 +144,7 @@
     transform: translate(-50%, -50%);
 }
 
-/* Mittel-Hexagon im Hauptmenue: kleiner als in den Widgets (2 * (HEX_R_IN - HEX_GAP) / 500) */
+/* center hexagon in the main menu: smaller than in the widgets (2 * (HEX_R_IN - HEX_GAP) / 500) */
 #actionmenu .inside {
     width: 21.6%;
     height: 21.6%;
@@ -222,7 +222,7 @@
     margin: 0px auto 2px auto;
 }
 
-/* Zurueck-Knopf im Mittel-Hexagon */
+/* back button in the center hexagon */
 #actionmenu .items .center-item .icon {
     width: 40px;
     max-height: 40px;
@@ -286,7 +286,7 @@
 }
 
 
-/* ===== Ziffernblock-Widget ===== */
+/* ===== number pad widget ===== */
 #widget-numpad {
     display: none;
     position: absolute;
@@ -318,7 +318,7 @@
     transform: translate(-50%, -50%);
     color: #ffffff;
     font-size: 30px;
-    /* schwarze Kontur, damit die Zeichen auch auf hellem Hintergrund lesbar sind */
+    /* black outline so the text stays readable on bright backgrounds */
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -2px 0px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, 0px 2px 0 #000, 0px 0px 6px rgba(0, 0, 0, 0.9);
 }
 
@@ -336,14 +336,14 @@
 #widget-numpad .np-ok-label {
     left: 50%;
     font-size: 26px;
-    z-index: 5; /* ueber dem Joystick-Punkt */
+    z-index: 5; /* above the joystick dot */
 }
 
-/* Textbox wie bei der CVR-Tastatur, direkt ueber der Hexagon-Spitze */
+/* text box like the CVR keyboard, right above the tip of the hexagon */
 #widget-numpad .np-header, #widget-j2d .w-header {
     position: absolute;
     left: 50%;
-    width: 492px; /* breiter als das Hexagon */
+    width: 492px; /* wider than the hexagon */
     transform: translate(-50%, -100%);
 }
 
@@ -369,7 +369,7 @@
     overflow: hidden;
 }
 
-/* Platzhalter liegt absolut in der Box, so zeigt Cohtml ihn zuverlaessig an */
+/* placeholder is positioned absolutely in the box, that way Cohtml shows it reliably */
 #widget-numpad .np-box {
     position: relative;
 }
@@ -433,6 +433,31 @@
 
 #debug-footer .debug-left { left: 6px; }
 #debug-footer .debug-right { right: 6px; }
+
+
+/* ===== clock and FPS ===== */
+#hud-info {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 500px;
+    height: 500px;
+    z-index: 20;
+    pointer-events: none;
+}
+
+#hud-info .hud-left, #hud-info .hud-right {
+    display: none;
+    position: absolute;
+    top: 4px;
+    font-size: 20px;
+    color: #ffffff;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -2px 0px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, 0px 2px 0 #000, 0px 0px 6px rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+}
+
+#hud-info .hud-left { left: 6px; }
+#hud-info .hud-right { right: 6px; }
 
 
 /* ===== 2D-Joystick-Widget ===== */
@@ -511,7 +536,7 @@
     border-bottom: 22px solid rgba(255, 255, 255, 0.35);
 }
 
-/* kleines Hexagon in UI-Farbe mit weissem Rand */
+/* small hexagon in UI color with a white border */
 #widget-j2d .j2d-marker {
     width: 60px;
     height: 60px;
@@ -532,7 +557,7 @@
 }
 
 
-/* ===== Aufspring-Animation der Kacheln ===== */
+/* ===== pop-in animation of the tiles ===== */
 #actionmenu .segment.seg-pop {
     animation-name: seg_pop;
     animation-duration: 0.34s;
@@ -547,7 +572,7 @@
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* Namen nur einblenden: ihr transform (Position, Drehung) darf die Animation nicht ueberschreiben */
+/* only fade in the names: the animation must not overwrite their transform (position, rotation) */
 #actionmenu .items .item.label-pop {
     animation-name: label_pop;
     animation-duration: 0.22s;
@@ -561,7 +586,7 @@
 }
 
 
-/* ===== Schliess-Animation ===== */
+/* ===== close animation ===== */
 #actionmenu .segment.seg-close {
     animation-name: seg_close;
     animation-duration: 0.12s;
@@ -575,7 +600,7 @@
     100% { transform: scale(0.5); opacity: 0; }
 }
 
-#actionmenu .items .item.label-close, #actionmenu .inside.label-close, #actionmenu .joystick.label-close, #debug-footer.label-close {
+#actionmenu .items .item.label-close, #actionmenu .inside.label-close, #actionmenu .joystick.label-close, #debug-footer.label-close, #hud-info.label-close {
     animation-name: label_close;
     animation-duration: 0.08s;
     animation-iteration-count: 1;

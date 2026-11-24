@@ -1,7 +1,7 @@
-// AdvActionMenu - Vorschau-Fenster
-// AdvActionMenu: Hexagon mit Luecken, erster Eintrag oben, im Uhrzeigersinn
-// daky's Action Menu: rundes Rad, erster Eintrag unten
-// Klick auf ein Untermenue oeffnet es, Klick auf einen Toggle schaltet ihn (nur Vorschau), Mitte = zurueck.
+// AdvActionMenu - preview window
+// AdvActionMenu: hexagon with gaps, first entry at the top, clockwise
+// daky's Action Menu: round wheel, first entry at the bottom
+// Clicking a submenu opens it, clicking a toggle switches it (preview only), center = back.
 
 using System.Collections.Generic;
 using UnityEditor;
@@ -22,7 +22,7 @@ namespace AdvActionMenu.Unity.EditorTools
         bool _hoverCenter;
         static GUIStyle _label;
 
-        // Farben wie im Spiel (CVR-Standard)
+        // colors like in game (CVR default)
         static readonly Color HexBase = new Color(0.133f, 0.133f, 0.133f, 0.85f);
         static readonly Color HexHover = new Color(0.20f, 0.20f, 0.20f, 1f);
         static readonly Color Accent = new Color(0.663f, 0.157f, 0f, 1f);
@@ -150,7 +150,7 @@ namespace AdvActionMenu.Unity.EditorTools
             history.RemoveAt(history.Count - 1);
         }
 
-        // Winkel in Grad, im Uhrzeigersinn: AdvActionMenu 0 = oben, Action Menu 0 = unten
+        // angle in degrees, clockwise: AdvActionMenu 0 = top, Action Menu 0 = bottom
         Vector2 Dir(float deg)
         {
             var a = deg * Mathf.Deg2Rad;
@@ -217,7 +217,7 @@ namespace AdvActionMenu.Unity.EditorTools
             var n = view.Count;
             var w = n > 0 ? 360f / n : 360f;
 
-            // Segmente als Tortenstuecke bis zum Hexagon-Rand (konvex), Luecken und Mitte werden darueber gezeichnet
+            // segments as pie slices up to the hexagon edge (convex), gaps and center are drawn on top
             for (var i = 0; i < Mathf.Max(1, n); ++i)
             {
                 Color col;
@@ -236,7 +236,7 @@ namespace AdvActionMenu.Unity.EditorTools
                 Handles.DrawAAConvexPolygon(pts.ToArray());
             }
 
-            // Luecken
+            // gaps
             if (n > 1)
             {
                 Handles.color = Background;
@@ -268,7 +268,7 @@ namespace AdvActionMenu.Unity.EditorTools
             }
         }
 
-        // ----- rundes Rad (daky's Action Menu) -----
+        // ----- round wheel (daky's Action Menu) -----
         void DrawRoundMenu(Rect r, List<ViewItem> view)
         {
             var c = r.center;

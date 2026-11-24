@@ -1,6 +1,6 @@
 const totalwidth = 500; // full width of actionmenu in pixels
 const mid = 250; // half width in screen px
-const STAGE_TOP = 130; // so weit beginnt das Menue unter dem oberen Rand (Platz fuer die Textbox)
+const STAGE_TOP = 130; // the menu starts this far below the top edge (room for the text box)
 const maxdist = 0.15; // 'inner' joystick zone, normalized
 const deadzone = 0.5; // normalized
 const pi = Math.PI;
@@ -28,21 +28,21 @@ var was_in_deadzone = false;
 var update_to_items = {}; // items registry to sync game<>menu state
 
 
-/* ===== ActionMenuAdvanced: Hexagon-Menue =====
-   Winkel-Konvention hier: 0 = oben, im Uhrzeigersinn, in Grad
-   Koordinaten in px innerhalb der 500x500 grossen Menue-Flaeche, Mitte = (mid, mid) */
+/* ===== ActionMenuAdvanced: hexagon menu =====
+   Angle convention here: 0 = top, clockwise, in degrees
+   Coordinates in px inside the 500x500 menu area, center = (mid, mid) */
 
-const HEX_R_OUT = 246;      // Aussenradius (Spitze oben)
-const HEX_R_IN = 60;        // Radius des Mittel-Hexagons
-const HEX_GAP = 6;          // Breite der Luecken zwischen Segmenten
-const HYSTERESIS_DEG = 3;   // so viele Grad muss man ins Nachbarsegment, bevor die Auswahl wechselt
-const NARROW_DEG = 24;      // ab hier schmaler: Namen werden gedreht
+const HEX_R_OUT = 246;      // outer radius (tip at the top)
+const HEX_R_IN = 60;        // radius of the center hexagon
+const HEX_GAP = 6;          // width of the gaps between segments
+const HYSTERESIS_DEG = 3;   // degrees you have to move into the neighbor segment before the selection changes
+const NARROW_DEG = 24;      // narrower than this: names get rotated
 const LABEL_FONT_MAX = 22, LABEL_FONT_MIN = 12;
-const LABEL_CHAR_EM = 0.6;          // geschaetzte Zeichenbreite der fetten Noto Sans
-const LABEL_TWO_LINES_BELOW = 17;
-const LABEL_COMMON_MIN = 15;       // gemeinsame Schriftgroesse im Menue, ausser einzelne Namen brauchen weniger   // kleinere Schrift als das -> lieber zweizeilig
+const LABEL_CHAR_EM = 0.6;          // estimated character width of bold Noto Sans
+const LABEL_TWO_LINES_BELOW = 17;   // smaller font than this -> rather use two lines
+const LABEL_COMMON_MIN = 15;       // common font size in the menu, unless single names need less
 
-// Namen in zwei moeglichst gleich lange Zeilen teilen: bevorzugt an Leerzeichen, sonst vor Grossbuchstaben
+// split names into two lines of similar length: preferably at spaces, otherwise before capital letters
 function split_label(text) {
 	let best = null, best_len = Infinity;
 	const consider = (a, b) => {
@@ -59,25 +59,25 @@ function split_label(text) {
 	return best;
 }
 
-let accent_rgb = [169, 40, 0];     // CVR-Standard #a92800, wird von der Mod mit deiner UI-Farbe ueberschrieben
-let base_rgb = [34, 34, 34];       // CVR-Standard #222222, mit "Colourize Menu" deine erste Spielerfarbe (abgedunkelt)
-let $segs = [];                      // ein div pro Menuepunkt
+let accent_rgb = [169, 40, 0];     // CVR default #a92800, overwritten by the mod with your UI color
+let base_rgb = [34, 34, 34];       // CVR default #222222, with "Colourize Menu" your first player color (darkened)
+let $segs = [];                      // one div per menu item
 
 const deg2rad = d => d * pi / 180;
-const dir = a => [Math.sin(deg2rad(a)), -Math.cos(deg2rad(a))]; // Einheitsvektor fuer Winkel a
+const dir = a => [Math.sin(deg2rad(a)), -Math.cos(deg2rad(a))]; // unit vector for angle a
 const dot2 = (a, b) => a[0]*b[0] + a[1]*b[1];
 
 function hex_vertices(R) {
 	return [0, 60, 120, 180, 240, 300].map(a => { const d = dir(a); return [R*d[0], R*d[1]]; });
 }
 
-// Abstand von der Mitte bis zum Hexagon-Rand in Richtung a
+// distance from the center to the hexagon edge in direction a
 function hex_edge_dist(R, a) {
 	const local = ((((a % 60) + 60) % 60) - 30);
 	return R * Math.cos(deg2rad(30)) / Math.cos(deg2rad(local));
 }
 
-// groesstes t, an dem die Linie o + t*d den Hexagon-Rand schneidet (Austrittspunkt)
+// largest t where the line o + t*d crosses the hexagon edge (exit point)
 function hex_exit(R, o, d) {
 	const v = hex_vertices(R);
 	let best = null;
@@ -96,9 +96,9 @@ function hex_exit(R, o, d) {
 
 function angle_of(p) { return ((Math.atan2(p[0], -p[1]) * 180 / pi) + 360) % 360; }
 
-// Polygon fuer Segment i von n (Punkte relativ zur Mitte)
+// polygon for segment i of n (points relative to the center)
 function segment_polygon(i, n, R_OUT = HEX_R_OUT, R_IN = HEX_R_IN) {
-	if (n <= 1) { // ganzer Ring: aussen im, innen gegen den Uhrzeigersinn, verbunden ueber einen unsichtbaren Schlitz
+	if (n <= 1) { // full ring: outside clockwise, inside counter-clockwise, joined by an invisible slit
 		const o = hex_vertices(R_OUT), r = hex_vertices(R_IN);
 		return [...o, o[0], r[0], r[5], r[4], r[3], r[2], r[1], r[0]];
 	}
@@ -123,7 +123,7 @@ function paint_segment(i) {
 	if (!$s || !menu) return;
 	const item = menu[i];
 	const hover = i === selected_sector;
-	// Farben wie in der CVR-UI: Panels #222222 mit ~75 % Deckkraft, Hover voll deckend, aktiv = UI-Farbe
+	// colors like the CVR UI: panels #222222 at ~75 % opacity, hover fully opaque, active = UI color
 	if (item?.enabled)
 		$s.style.backgroundColor = rgba(accent_rgb, hover ? 1 : 0.88);
 	else
@@ -136,14 +136,14 @@ function replay_open_animation() {
 	const style = settings?.animation_style ?? "spawn";
 	const seg_class = style === "fade" ? "seg-fade" : "seg-pop";
 	const $its = Array.from($items.childNodes);
-	const $others = [$inside, $joystick, document.getElementById("debug-footer")];
-	// alle Animationsklassen entfernen ...
+	const $others = [$inside, $joystick, document.getElementById("debug-footer"), document.getElementById("hud-info")];
+	// remove all animation classes ...
 	$segs.forEach($s => $s.classList.remove("seg-pop", "seg-fade", "seg-close", "seg-fade-out"));
 	$its.forEach($it => $it.classList.remove("label-pop", "label-close"));
 	$others.forEach($el => $el.classList.remove("label-close"));
 	selected_sector = null;
 	repaint_all_segments();
-	// ... und im naechsten Frame wieder setzen, damit die Animation von vorn beginnt
+	// ... and set them again in the next frame so the animation starts over
 	requestAnimationFrame(() => {
 		const n = Math.max(1, $segs.length);
 		const stagger = Math.min(30, 220 / n);
@@ -166,7 +166,7 @@ function play_close_animation() {
 		$s.style.animationDelay = (i * stagger).toFixed(0) + 'ms';
 		$s.classList.add(close_class);
 	});
-	[$inside, $joystick, document.getElementById("debug-footer")].forEach($el => { $el.classList.remove("label-close"); $el.classList.add("label-close"); });
+	[$inside, $joystick, document.getElementById("debug-footer"), document.getElementById("hud-info")].forEach($el => { $el.classList.remove("label-close"); $el.classList.add("label-close"); });
 	Array.from($items.childNodes).forEach($it => {
 		$it.classList.remove("label-pop");
 		$it.style.animationDelay = '0ms';
@@ -174,10 +174,10 @@ function play_close_animation() {
 	});
 }
 
-// Joystick-Richtung -> Segment, mit Hysterese gegen Zittern an den Grenzen
+// joystick direction -> segment, with hysteresis against jitter at the borders
 function pick_index(x, y, n, current) {
 	if (n <= 1) return 0;
-	const a = ((Math.atan2(x, y) * 180 / pi) + 360) % 360; // y zeigt hier nach oben
+	const a = ((Math.atan2(x, y) * 180 / pi) + 360) % 360; // y points up here
 	const w = 360 / n;
 	if (current != null) {
 		const d = Math.abs(((a - current * w) % 360 + 540) % 360 - 180);
@@ -187,7 +187,7 @@ function pick_index(x, y, n, current) {
 }
 const pick_sector = (x, y) => pick_index(x, y, sectors, selected_sector);
 
-// wie CVRs ViewColourHandler: zu helle Farben auf eine maximale Helligkeit abdunkeln
+// like CVR's ViewColourHandler: darken colors that are too bright to a maximum brightness
 function parse_hex_limited(hex, max_luma) {
 	if (typeof hex !== "string") return null;
 	const m = hex.replace('#', '').match(/^([0-9a-fA-F]{6})/);
@@ -218,7 +218,7 @@ function set_accent_color(hex) {
 	repaint_all_segments();
 }
 
-// Name und (wenn Platz ist) Icon im Segment platzieren
+// place name and (if there's room) icon in the segment
 function place_item_label($item, i, n) {
 	const w = 360 / n, c = i * w;
 	const $icon = $item.getElementsByClassName("icon")[0];
@@ -235,10 +235,10 @@ function place_item_label($item, i, n) {
 		let rm;
 		if (narrow) {
 			rm = (HEX_R_IN + ro) / 2 + 10;
-			rotate = c - 90;                 // Text laeuft entlang des Segments nach aussen
-			if (c > 180) rotate = c + 90;    // linke Seite: nicht auf dem Kopf
+			rotate = c - 90;                 // text runs along the segment outwards
+			if (c > 180) rotate = c + 90;    // left side: not upside down
 			avail = 2 * Math.min(ro - rm - 10, rm - HEX_R_IN - 10);
-			thick = 2 * rm * Math.tan(deg2rad(w / 2)) - 4; // Platz quer zum Text
+			thick = 2 * rm * Math.tan(deg2rad(w / 2)) - 4; // room across the text
 		} else {
 			rm = ro * 0.64;
 			avail = 2 * rm * Math.tan(deg2rad(Math.min(w, 120) / 2)) - 14;
@@ -247,7 +247,7 @@ function place_item_label($item, i, n) {
 		x = rm * d[0]; y = rm * d[1];
 	}
 
-	// Icon, wenn vorhanden: Groesse passend zum Platz statt ab einer Grenze auszublenden
+	// icon, if there is one: size it to the available room instead of hiding it below a limit
 	const icon_size = clamp(0, 56, avail * 0.55);
 	const show_icon = $icon && rotate === 0 && icon_size >= 28;
 	if ($icon) {
@@ -256,8 +256,8 @@ function place_item_label($item, i, n) {
 		$icon.style.maxHeight = icon_size.toFixed(0) + 'px';
 	}
 
-	// Schrift so gross wie moeglich, ohne ueber das Segment zu ragen.
-	// Wird ein Name zu klein, wird er auf zwei Zeilen verteilt (an Leerzeichen oder vor Grossbuchstaben)
+	// font as big as possible without sticking out of the segment.
+	// If a name gets too small, it's split into two lines (at spaces or before capital letters)
 	if ($label) {
 		const text = $label.textContent ?? "";
 		let fs = Math.min(avail / (Math.max(1, text.length) * LABEL_CHAR_EM), thick / 1.2);
@@ -333,13 +333,13 @@ function handle_direction_main(x, y, dist) { // x,y from -1 to +1
 		selected_sector = null;
 	}
 
-	// Joystick-Punkt bleibt im Mittel-Hexagon
+	// joystick dot stays inside the center hexagon
 	const jr = 0.6 * HEX_R_IN / totalwidth;
 	$joystick.style.left = 100*(0.5 + jr * clamp(-1, 1, x)) + '%';
 	$joystick.style.top  = 100*(0.5 - jr * clamp(-1, 1, y)) + '%'; // html convention has vertical axis inverted
 
 	if (old_selected_sector != selected_sector) {
-		// cohtml erkennt CSS-Aenderungen an Kindern nicht zuverlaessig, deshalb Klassen an allen Kindern
+		// cohtml doesn't reliably pick up CSS changes on children, so set the classes on all children
 		const $old = $items.childNodes[old_selected_sector];
 		if ($old) [$old, ...Array.from($old.childNodes)].forEach($el => $el.classList.remove('hover'));
 		const $new = $items.childNodes[selected_sector];
@@ -413,7 +413,7 @@ function handle_click_main() {
 		}
 
 		case 'game settings toggle': {
-			if (action.parameter === 'GeneralShowHud') // CVR reagiert nicht mehr live auf diese Einstellung
+			if (action.parameter === 'GeneralShowHud') // CVR doesn't react live to this setting anymore
 				engine.call("SetHudVisible", !is_enabled);
 			else
 				engine.call("CVRAppCallSaveSetting", action.parameter, is_enabled ? "False" : "True");
@@ -432,7 +432,7 @@ function handle_click_main() {
 			switch (action.control) {
 				case undefined:
 				case 'toggle': {
-					if (action.exclusive_option && item.enabled) break; // Auswahl: aktive Option bleibt aktiv
+					if (action.exclusive_option && item.enabled) break; // selection: the active option stays active
 					const new_value = item.enabled ? 0 : (action.value ?? 1);
 					engine.call("SetMelonPreference", action.parameter, String(new_value));
 					action_toggle = action?.toggle;
@@ -602,7 +602,7 @@ function control_type_radial(item, action, set_value) {
 	wait_joystick_recenter = true;
 }
 
-// freie Zahleneingabe; min_value/max_value sind optional (ohne = unbegrenzt)
+// free number input; min_value/max_value are optional (none = unlimited)
 function control_type_number(item, action, set_value) {
 	widget_numpad.start(item, action, (v) => {
 		set_value(v);
@@ -714,8 +714,10 @@ function set_item_enabled(sector, item, new_value) {
 }
 
 function show_item_enabled(sector, item) {
-	if (sector == null || item == null) throw `sector ${sector} or item ${item} is null`;
+	if (item == null) return;
 	item.enabled = item.enabled ?? false;
+	// without a known segment (e.g. right after opening, nothing selected yet) just repaint everything
+	if (sector == null) { if (menu) repaint_all_segments(); return; }
 	if (menu && menu[sector] === item)
 		paint_segment(sector);
 }
@@ -735,7 +737,7 @@ function on_game_value_update(update) {
 	items.forEach(item => {
 		const action = item.action;
 
-		// Avatar-Parameter, die sich ausserhalb des Menues geaendert haben
+		// avatar parameters that changed outside the menu
 		if (update.type === 'avatar parameter') {
 			const c = action.control;
 			if ((c === 'toggle' || c === 'impulse') && update.value != null)
@@ -794,7 +796,7 @@ function build_$item(item, i) {
 }
 
 function clear_all_enabled_sectors(parameter) {
-	repaint_all_segments(); // Segmente zeigen ihren Zustand direkt, hier gibt es nichts mehr aufzuraeumen
+	repaint_all_segments(); // segments show their state directly, nothing left to clean up here
 }
 
 function load_menu(name) {
@@ -808,26 +810,26 @@ function load_menu(name) {
 
 	$items.innerHTML = '';
 	$segments.innerHTML = '';
-	[$inside, $joystick, document.getElementById("debug-footer")].forEach($el => $el.classList.remove("label-close")); // nach einer Schliess-Animation wieder zeigen
+	[$inside, $joystick, document.getElementById("debug-footer"), document.getElementById("hud-info")].forEach($el => $el.classList.remove("label-close")); // show again after a close animation
 	$segs = [];
 	selected_sector = null;
 
 	sectors = menu.length;
 
-	// Kacheln springen nacheinander auf (Welle im Uhrzeigersinn, insgesamt hoechstens ~0,3 s)
+	// tiles pop in one after another (clockwise wave, ~0.3 s at most in total)
 	const style = settings.animation_style ?? "spawn";
 	const animate = style !== "disabled";
 	const seg_class = style === "fade" ? "seg-fade" : "seg-pop";
 	const stagger = Math.min(30, 220 / Math.max(1, sectors));
 
-	// Hexagon-Segmente bauen
+	// build the hexagon segments
 	menu.forEach((item, i) => {
 		const $s = document.createElement('div');
 		$s.className = "segment";
 		const poly = segment_polygon(i, sectors);
 		$s.style.clipPath = to_clip_path(poly);
 		if (animate) {
-			// aus der eigenen Mitte heraus wachsen lassen
+			// grow from its own center
 			const cx = poly.reduce((a, p) => a + p[0], 0) / poly.length;
 			const cy = poly.reduce((a, p) => a + p[1], 0) / poly.length;
 			$s.style.transformOrigin = `${((mid + cx) / totalwidth * 100).toFixed(2)}% ${((mid + cy) / totalwidth * 100).toFixed(2)}%`;
@@ -838,7 +840,7 @@ function load_menu(name) {
 		$segs.push($s);
 	});
 
-	// Namen und Icons
+	// names and icons
 	menu.forEach((item, i) => {
 		const $item = build_$item(item, i);
 		place_item_label($item, i, sectors);
@@ -849,7 +851,7 @@ function load_menu(name) {
 		$items.appendChild($item);
 	});
 
-	// einheitliche Schriftgroesse: alle so gross wie der kleinste Name (aber nicht winzig wegen eines einzelnen langen Namens)
+	// common font size: all as big as the smallest name (but not tiny because of a single long name)
 	const $labeled = Array.from($items.childNodes).filter($it => $it._label_fs);
 	if ($labeled.length) {
 		const common = Math.max(Math.min(...$labeled.map($it => $it._label_fs)), LABEL_COMMON_MIN);
@@ -860,7 +862,7 @@ function load_menu(name) {
 	}
 	repaint_all_segments();
 
-	// Zurueck-Knopf in der Mitte
+	// back button in the center
 	if (menu_name != "main" && !settings.boring_back_button) {
 		const $item = build_$item(virtual_back_item);
 		$item.classList.add("center-item");
@@ -984,7 +986,7 @@ const widget_radial = (function() {
 })();
 
 
-/* joystick 2D widget (ActionMenuAdvanced: Hexagon-Design) */
+/* joystick 2D widget (ActionMenuAdvanced: hexagon design) */
 
 const widget_j2d = (function() {
 	const $w = document.getElementById("widget-j2d");
@@ -995,8 +997,8 @@ const widget_j2d = (function() {
 	const $guide_h = $w.getElementsByClassName("j2d-guide-h")[0];
 	const $triangles = $w.getElementsByClassName("triangles")[0];
 
-	const R_MOVE = 164; // so weit wandert der Marker vom Mittelpunkt
-	// Pfeile oben, rechts, unten, links (Stick-Koordinaten: y nach oben)
+	const R_MOVE = 164; // how far the marker moves from the center
+	// arrows top, right, bottom, left (stick coordinates: y up)
 	const ARROWS = [[0, 1, 0], [1, 0, 90], [0, -1, 180], [-1, 0, 270]];
 	let $tris = [];
 	let label_fn = null;
@@ -1014,7 +1016,7 @@ const widget_j2d = (function() {
 		});
 	};
 
-	const values_to_joystick = (x, y) => { // erwartet -1..+1, y nach oben
+	const values_to_joystick = (x, y) => { // expects -1..+1, y up
 		const px = mid + x * R_MOVE, py = mid - y * R_MOVE;
 		$marker.style.left = px + 'px';
 		$marker.style.top = py + 'px';
@@ -1054,7 +1056,7 @@ const widget_j2d = (function() {
 		label_fn = _label_fn ?? null;
 		$name.innerHTML = item.name ?? "";
 		$w.style.display = 'block';
-		$actionmenu.style.display = 'none'; // Hauptmenue ausblenden
+		$actionmenu.style.display = 'none'; // hide the main menu
 
 		active_widget = {
 			handle_direction: (x, y, dist) => handle_direction_joystick_2d(set_value, x, y, dist),
@@ -1072,7 +1074,7 @@ const widget_j2d = (function() {
 })();
 
 
-/* Ziffernblock-Widget (ActionMenuAdvanced) */
+/* number pad widget (ActionMenuAdvanced) */
 
 const widget_numpad = (function() {
 	const $w = document.getElementById("widget-numpad");
@@ -1085,8 +1087,8 @@ const widget_numpad = (function() {
 	const $ok = $w.getElementsByClassName("np-ok")[0];
 	const $joystick = $w.getElementsByClassName("joystick")[0];
 
-	// Hexagon etwas kleiner und tiefer, damit die Textbox direkt ueber die Spitze passt
-	const R_OUT = HEX_R_OUT, R_IN = HEX_R_IN, CX = mid, CY = mid; // gleich gross wie das Hauptmenue
+	// hexagon a bit smaller and lower so the text box fits right above the tip
+	const R_OUT = HEX_R_OUT, R_IN = HEX_R_IN, CX = mid, CY = mid; // same size as the main menu
 	const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", ".", "\u2212", "\u232B", "\u2715"];
 	const MAX_CHARS = 10;
 
@@ -1113,7 +1115,7 @@ const widget_numpad = (function() {
 			const c = i * w, r = hex_edge_dist(R_OUT, c) * 0.68, d = dir(c);
 			const $l = document.createElement('div');
 			$l.className = "np-key";
-			// Loeschen und Abbrechen als Icons: CVRs Schrift hat diese Zeichen nicht
+			// delete and cancel as icons: CVR's font doesn't have these characters
 			const icon = { "\u232B": "icon_np_backspace.svg", "\u2715": "icon_np_cancel.svg" }[k];
 			if (icon) {
 				const $img = document.createElement('img');
@@ -1123,7 +1125,7 @@ const widget_numpad = (function() {
 			}
 			else {
 				$l.innerHTML = k;
-				if (k === "." || k === "\u2212") $l.classList.add("np-key-big"); // kleine Zeichen groesser
+				if (k === "." || k === "\u2212") $l.classList.add("np-key-big"); // small characters bigger
 			}
 			$l.style.left = (CX + r * d[0]) + 'px';
 			$l.style.top = (CY + r * d[1]) + 'px';
@@ -1137,7 +1139,7 @@ const widget_numpad = (function() {
 
 	const close = () => {
 		$w.style.display = 'none';
-		$actionmenu.style.display = 'block'; // Hauptmenue wieder zeigen
+		$actionmenu.style.display = 'block'; // show the main menu again
 		ctx = null;
 		back_from_widget();
 	};
@@ -1158,7 +1160,7 @@ const widget_numpad = (function() {
 	const press = (k) => {
 		switch (k) {
 			case "\u2715": close(); return;                      // abbrechen
-			case "\u232B": typed = typed.slice(0, -1); break;    // loeschen
+			case "\u232B": typed = typed.slice(0, -1); break;    // delete
 			case "\u2212": typed = typed.startsWith("-") ? typed.slice(1) : "-" + typed; break;
 			case ".":
 				if (!typed.includes(".")) typed += (typed === "" || typed === "-") ? "0." : ".";
@@ -1189,7 +1191,7 @@ const widget_numpad = (function() {
 		else press(KEYS[sel]);
 	};
 
-	// Tastatureingabe am Desktop (kommt von der Mod als Text)
+	// keyboard input on desktop (comes from the mod as text)
 	const handle_keys = (str) => {
 		if (!ctx) return;
 		for (const ch of str) {
@@ -1217,7 +1219,7 @@ const widget_numpad = (function() {
 			? ` (${ctx.min != null ? fmt(ctx.min) : "\u2013"} \u2026 ${ctx.max != null ? fmt(ctx.max) : "\u2013"})` : "";
 		$meta_range.innerHTML = `Current: ${fmt(current)}${range}`;
 		$w.style.display = 'block';
-		$actionmenu.style.display = 'none'; // Hauptmenue ausblenden, damit nichts durchscheint
+		$actionmenu.style.display = 'none'; // hide the main menu so nothing shows through
 		paint();
 		active_widget = {
 			handle_direction: handle_direction_numpad,
@@ -1242,19 +1244,19 @@ function load_action_menu(_menu, _settings) {
 	if (settings.flick_selection)
 		wait_joystick_recenter = true;
 
-	// Version immer, "Debugging enabled" nur im Debug-Modus
+	// version always, "Debugging enabled" only in debug mode
 	const $dbg = document.getElementById("debug-footer");
 	$dbg.style.display = 'block';
 	$dbg.getElementsByClassName("debug-left")[0].innerHTML = "Version " + (settings.version ?? "?");
 	$dbg.getElementsByClassName("debug-right")[0].style.display = settings.debug ? 'block' : 'none';
 
-	// offene Widgets schliessen, falls das Menue neu geladen wird (z. B. Avatarwechsel)
+	// close open widgets in case the menu is reloaded (e.g. avatar change)
 	["widget-radial", "widget-j2d", "widget-numpad"].forEach(id => document.getElementById(id).style.display = 'none');
 	$actionmenu.style.display = 'block';
 	active_widget = null;
 
 	// need an item registry to sync game<>menu update system
-	update_to_items = {}; // bei neuem Avatar alte Eintraege verwerfen
+	update_to_items = {}; // drop old entries on a new avatar
 	Object.values(menus).forEach(m => {
 		m.forEach(item => {
 			const k = action_to_update_key(item.action);
@@ -1263,7 +1265,8 @@ function load_action_menu(_menu, _settings) {
 		});
 	});
 
-	load_menu("main");
+	// stay in the same submenu after a setting was changed in the wheel
+	load_menu(settings.keep_menu && menu_name && menus[menu_name] ? menu_name : "main");
 }
 
 (function () {
@@ -1312,22 +1315,40 @@ engine.on('LoadActionMenu', (_content, _settings) => {
 
 engine.on('ToggleActionMenu', (show) => {
 	quickmenu_active = show;
-	// beim Schliessen offene Eingaben/Widgets abbrechen
+	// cancel open inputs/widgets when closing
 	if (!show) {
 		["widget-radial", "widget-j2d", "widget-numpad"].forEach(id => document.getElementById(id).style.display = 'none');
 		$actionmenu.style.display = 'block';
 		active_widget = null;
 	}
 	if ((settings?.animation_style ?? "spawn") === "disabled") return;
-	// beim Oeffnen nur die Animation neu starten (kein Neuaufbau, Icons muessen nicht neu geladen werden)
+	// on open only restart the animation (no rebuild, icons don't need to load again)
 	if (show && menu_name && menus[menu_name] && active_widget == null)
 		replay_open_animation();
-	// beim Schliessen ziehen sich die Kacheln nacheinander zusammen (die Mod blendet danach aus)
+	// on close the tiles shrink one after another (the mod hides the view afterwards)
 	if (!show) play_close_animation();
 });
 
 engine.on('AccentColor', (hex) => set_accent_color(hex));
 engine.on('UiColors', (primary, accent, max_luma) => set_ui_colors(primary, accent, max_luma));
+
+// clock top left, FPS top right (empty text = hidden)
+engine.on('HudInfo', (clock, fps) => {
+	try {
+		const $hud = document.getElementById("hud-info");
+		if (!$hud) return;
+		[["hud-left", clock], ["hud-right", fps]].forEach(([cls, text]) => {
+			const $el = $hud.getElementsByClassName(cls)[0];
+			if (!$el) return;
+			text = text ?? "";
+			if ($el.textContent !== text) $el.textContent = text; // only touch it when it changed
+			const display = text ? 'block' : 'none';
+			if ($el.style.display !== display) $el.style.display = display;
+		});
+	} catch (e) {
+		console.log("HudInfo failed: " + e);
+	}
+});
 
 engine.on('GameValueUpdate', (_update) => {
 	on_game_value_update(JSON.parse(_update).action);

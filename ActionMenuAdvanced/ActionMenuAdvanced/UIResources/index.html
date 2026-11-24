@@ -11,7 +11,7 @@
 </head>
 
 <body>
-    <!-- Buehne: 500x500 Menue, darueber 100px Platz fuer die Ziffernblock-Textbox -->
+    <!-- stage: 500x500 menu, with room above it for the number pad text box -->
     <div id="stage">
     <div id="actionmenu">
         <div class="segments"></div>
@@ -46,7 +46,13 @@
         <div class="j2d-marker"><div class="j2d-marker-inner"></div></div>
     </div>
 
-    <!-- Debug-Anzeige in den freien Ecken unter dem Hexagon -->
+    <!-- clock and FPS in the free corners above the hexagon -->
+    <div id="hud-info">
+        <div class="hud-left"></div>
+        <div class="hud-right"></div>
+    </div>
+
+    <!-- debug display in the free corners below the hexagon -->
     <div id="debug-footer">
         <div class="debug-left"></div>
         <div class="debug-right">Debugging enabled</div>

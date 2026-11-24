@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableExtensions
-title AdvActionMenu bauen
+title Build AdvActionMenu
 cd /d "%~dp0"
 
 rem ======================================================================
-rem  Einstellungen
+rem  Settings
 rem ======================================================================
 if "%CVRPATH%"=="" set "CVRPATH=D:\SteamLibrary\steamapps\common\ChilloutVR"
-rem Unity-Installation (Ordner "Managed" mit UnityEngine.dll)
+rem Unity installation ("Managed" folder with UnityEngine.dll)
 if "%UNITY_MANAGED%"=="" set "UNITY_MANAGED=D:\Unity\Versions\2022.3.58f1\Editor\Data\Managed"
 
 set "CONFIG=Release"
@@ -23,19 +23,19 @@ echo  Unity:      %UNITY_MANAGED%
 echo.
 
 if not exist "%MODS%" (
-    echo [FEHLER] Mods-Ordner nicht gefunden: "%MODS%"
-    echo          Pfad oben in der Build.bat oder Umgebungsvariable CVRPATH anpassen
+    echo [ERROR] Mods folder not found: "%MODS%"
+    echo          Change the path at the top of Build.bat or set the CVRPATH environment variable
     goto :fail
 )
 
-rem ===== Laeuft ChilloutVR noch? Dann ist die DLL gesperrt =====
+rem ===== Is ChilloutVR still running? Then the DLL is locked =====
 tasklist /FI "IMAGENAME eq ChilloutVR.exe" 2>nul | find /i "ChilloutVR.exe" >nul
 if not errorlevel 1 (
-    echo [FEHLER] ChilloutVR laeuft noch. Bitte erst beenden, sonst kann die DLL nicht ersetzt werden
+    echo [ERROR] ChilloutVR is still running. Close it first, otherwise the DLL can't be replaced
     goto :fail
 )
 
-rem ===== Build-Werkzeug suchen: erst dotnet, dann MSBuild aus Visual Studio =====
+rem ===== Find a build tool: dotnet first, then MSBuild from Visual Studio =====
 set "BUILDER="
 dotnet --list-sdks 2>nul | findstr /r "." >nul
 if not errorlevel 1 set "BUILDER=dotnet"
@@ -46,61 +46,61 @@ for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -requires Microsoft.Compo
 if defined MSBUILD set "BUILDER=msbuild"
 :havebuilder
 if not defined BUILDER (
-    echo [FEHLER] Weder dotnet noch Visual Studio gefunden
+    echo [ERROR] Neither dotnet nor Visual Studio found
     goto :fail
 )
 
 rem ======================================================================
 rem  1) Mod
 rem ======================================================================
-echo [INFO] Baue die Mod mit %BUILDER% ...
+echo [INFO] Building the mod with %BUILDER% ...
 call :build "ActionMenuAdvanced\ActionMenuAdvanced.csproj"
 if errorlevel 1 (
     echo.
-    echo [FEHLER] Build der Mod fehlgeschlagen, siehe Meldungen oben
+    echo [ERROR] Building the mod failed, see the messages above
     goto :fail
 )
 if not exist "%DLL%" (
-    echo [FEHLER] Fertige DLL nicht gefunden: "%DLL%"
+    echo [ERROR] Built DLL not found: "%DLL%"
     goto :fail
 )
 
-rem Alte DLL unter dem frueheren Namen entfernen
-rem (Dakys ActionMenu.dll bleibt, AdvActionMenu fragt beim Start selbst, welches Menue genutzt wird)
+rem Remove the old DLL with the previous name
+rem (daky's ActionMenu.dll stays, AdvActionMenu asks on start which menu to use)
 if exist "%MODS%\ActionMenuAdvanced.dll" (
     del "%MODS%\ActionMenuAdvanced.dll"
-    echo [INFO] Alte ActionMenuAdvanced.dll aus Mods entfernt
+    echo [INFO] Removed old ActionMenuAdvanced.dll from Mods
 )
 
 copy /y "%DLL%" "%MODS%\AdvActionMenu.dll" >nul
 if errorlevel 1 (
-    echo [FEHLER] Kopieren nach "%MODS%" fehlgeschlagen
+    echo [ERROR] Copying to "%MODS%" failed
     goto :fail
 )
-echo [OK] AdvActionMenu.dll liegt jetzt in "%MODS%"
+echo [OK] AdvActionMenu.dll is now in "%MODS%"
 echo.
 
 rem ======================================================================
-rem  2) Unity-Generator (nur wenn Unity gefunden wird)
+rem  2) Unity generator (only if Unity is found)
 rem ======================================================================
 if not exist "%UNITY_MANAGED%\UnityEngine\UnityEngine.CoreModule.dll" (
-    echo [HINWEIS] Unity nicht gefunden unter "%UNITY_MANAGED%", Unity-Generator wird uebersprungen
+    echo [NOTE] Unity not found at "%UNITY_MANAGED%", skipping the Unity generator
     goto :done
 )
 
-echo [INFO] Baue den Unity-Generator ...
+echo [INFO] Building the Unity generator ...
 call :build "Unity\AdvActionMenu.Unity.Editor\AdvActionMenu.Unity.Editor.csproj" "-p:UnityManaged=%UNITY_MANAGED%"
 if errorlevel 1 (
     echo.
-    echo [FEHLER] Build des Unity-Generators fehlgeschlagen, siehe Meldungen oben
+    echo [ERROR] Building the Unity generator failed, see the messages above
     goto :fail
 )
-echo [OK] Unity-Generator liegt in "%~dp0%UNITY_OUT%"
-echo      (Ordner AdvActionMenu so wie er ist in Assets ziehen)
+echo [OK] Unity generator is in "%~dp0%UNITY_OUT%"
+echo      (drag the AdvActionMenu folder into Assets as it is)
 
 :done
 echo.
-echo [OK] Fertig
+echo [OK] Done
 echo.
 if /i not "%~2"=="nopause" pause
 exit /b 0
@@ -111,7 +111,7 @@ if /i not "%~2"=="nopause" pause
 exit /b 1
 
 rem ======================================================================
-rem  Hilfsroutinen
+rem  Helpers
 rem ======================================================================
 :build
 if "%BUILDER%"=="dotnet" (

@@ -1,22 +1,22 @@
 <Project>
     <!--
-        Pfad zu ChilloutVR. Standard ist deine Steam-Installation.
-        Du kannst ihn auch über eine Windows-Umgebungsvariable CVRPATH überschreiben.
+        Path to ChilloutVR. Default is the Steam installation.
+        You can also override it with a Windows environment variable CVRPATH.
     -->
     <PropertyGroup>
         <CVRPATH Condition="'$(CVRPATH)' == ''">D:\SteamLibrary\steamapps\common\ChilloutVR</CVRPATH>
         <CVRManaged>$(CVRPATH)\ChilloutVR_Data\Managed</CVRManaged>
-        <!-- true = nach jedem Build automatisch in den Mods-Ordner kopieren -->
+        <!-- true = copy into the Mods folder after every build -->
         <CopyToMods Condition="'$(CopyToMods)' == ''">true</CopyToMods>
     </PropertyGroup>
 
     <PropertyGroup>
-        <TargetFramework>net481</TargetFramework>
+        <TargetFramework>netstandard2.1</TargetFramework>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
-        <Version>0.2.0-beta.2</Version>
+        <Version>0.3.0</Version>
         <DebugSymbols>true</DebugSymbols>
         <DebugType>embedded</DebugType>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
@@ -37,14 +37,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- .NET Framework 4.8.1 Referenzen, damit kein Developer Pack nötig ist -->
-        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
-        <!-- macht private Felder der Spiel-DLLs zugreifbar (ersetzt Dakys NStrip-Schritt) -->
+        <!-- netstandard 2.1 since the Unity 6 update (the game assemblies need it, net481 only has 2.0) -->
+        <!-- makes private members of the game DLLs accessible (replaces daky's NStrip step) -->
         <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.*" PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>
-        <!-- alle Spiel-DLLs direkt aus deiner Installation, ohne Systembibliotheken -->
+        <!-- all game DLLs straight from your installation, without system libraries -->
         <GameDll Include="$(CVRManaged)\*.dll"
                  Exclude="$(CVRManaged)\mscorlib.dll;$(CVRManaged)\netstandard.dll;$(CVRManaged)\System.dll;$(CVRManaged)\System.*.dll;$(CVRManaged)\Mono.*.dll;$(CVRManaged)\Microsoft.*.dll;$(CVRManaged)\Assembly-CSharp.dll;$(CVRManaged)\Assembly-CSharp-firstpass.dll;$(CVRManaged)\UnityEngine.CoreModule.dll;$(CVRManaged)\Cohtml.Runtime.dll;$(CVRManaged)\SteamVR.dll;$(CVRManaged)\SteamVR_Actions.dll" />
         <Reference Include="@(GameDll)" Private="false" />
@@ -58,12 +57,12 @@
 
         <Reference Include="$(CVRPATH)\MelonLoader\net35\MelonLoader.dll" Private="false" />
         <Reference Include="$(CVRPATH)\MelonLoader\net35\0Harmony.dll" Private="false" />
-        <!-- VRBinding von daky ist bei dir schon installiert -->
+        <!-- daky's VRBinding has to be installed already -->
         <Reference Include="$(CVRPATH)\Mods\VRBinding.dll" Private="false" />
     </ItemGroup>
 
     <Target Name="CopyToCVRMods" AfterTargets="Build" Condition="'$(CopyToMods)' == 'true'">
-        <!-- alte DLL unter dem frueheren Namen entfernen -->
+        <!-- remove the old DLL with the previous name -->
         <Delete Files="$(CVRPATH)\Mods\ActionMenuAdvanced.dll" />
         <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(CVRPATH)\Mods" />
         <Message Importance="high" Text="$(TargetFileName) nach $(CVRPATH)\Mods kopiert" />

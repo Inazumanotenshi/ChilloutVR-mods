@@ -1,5 +1,5 @@
-// AdvActionMenu - vorhandene Override-JSON einlesen (overwrites oder item_overrides)
-// und Icons sowie Zahlen-Einstellungen in den Generator uebernehmen.
+// AdvActionMenu - read an existing override JSON (overwrites or item_overrides)
+// and take over icons and number settings into the generator.
 
 using System;
 using System.Collections.Generic;
@@ -15,7 +15,7 @@ using Gen = AdvActionMenu.Unity.ActionMenuGenerator;
 
 namespace AdvActionMenu.Unity.EditorTools
 {
-    // kleiner JSON-Leser (Objekte, Listen, Strings, Zahlen, true/false/null), ohne Newtonsoft
+    // small JSON reader (objects, lists, strings, numbers, true/false/null), without Newtonsoft
     internal static class MiniJson
     {
         public static object Parse(string s)
@@ -115,12 +115,12 @@ namespace AdvActionMenu.Unity.EditorTools
     {
         struct Found
         {
-            public string key;      // Menue-Pfad, z. B. avatar/Clothes/Hat
-            public string icon;     // data:-URI, Dateipfad oder Standard-Icon der Mod
+            public string key;      // menu path, e.g. avatar/Clothes/Hat
+            public string icon;     // data: URI, file path or built-in icon of the mod
             public string control;
             public float? min, max;
             public bool noLimits;
-            public bool explicitControl; // aus item_overrides: bewusst gesetzt
+            public bool explicitControl; // from item_overrides: set on purpose
         }
 
         static float? F(object o) => o is double d ? (float)d : (float?)null;
@@ -129,7 +129,7 @@ namespace AdvActionMenu.Unity.EditorTools
         {
             var list = new List<Found>();
 
-            // daky's Format: ganze Menues
+            // daky's format: whole menus
             if (root.TryGetValue("overwrites", out var ow) && ow is Dictionary<string, object> menus)
                 foreach (var m in menus)
                     if (m.Value is List<object> items)
@@ -147,7 +147,7 @@ namespace AdvActionMenu.Unity.EditorTools
                             list.Add(f);
                         }
 
-            // AdvActionMenu-Format: nur Aenderungen
+            // AdvActionMenu format: only changes
             if (root.TryGetValue("item_overrides", out var io) && io is Dictionary<string, object> imenus)
                 foreach (var m in imenus)
                     if (m.Value is Dictionary<string, object> items)
@@ -166,7 +166,7 @@ namespace AdvActionMenu.Unity.EditorTools
             return list;
         }
 
-        // Icon-Bytes aus data:-URI oder aus den UIResources der Mod im CVR-Ordner
+        // icon bytes from a data: URI or from the mod's UIResources in the CVR folder
         static byte[] LoadIconBytes(string icon, string cvrPath)
         {
             if (string.IsNullOrEmpty(icon)) return null;
@@ -176,7 +176,7 @@ namespace AdvActionMenu.Unity.EditorTools
                 var p = icon.IndexOf(marker, StringComparison.Ordinal);
                 return p < 0 ? null : Convert.FromBase64String(icon.Substring(p + marker.Length));
             }
-            if (!icon.StartsWith("avataricons/") || string.IsNullOrEmpty(cvrPath)) return null; // Standard-Icons der Mod (SVG) ueberspringen
+            if (!icon.StartsWith("avataricons/") || string.IsNullOrEmpty(cvrPath)) return null; // skip the mod's built-in icons (SVG)
             foreach (var mod in new[] { "AdvActionMenu", "ActionMenu" })
             {
                 var file = Path.Combine(cvrPath, "ChilloutVR_Data", "StreamingAssets", "Cohtml", "UIResources", mod,
@@ -219,17 +219,17 @@ namespace AdvActionMenu.Unity.EditorTools
                 return;
             }
 
-            // welche Eintraege sind Zahlen (Slider / Input Single)?
+            // which entries are numbers (slider / Input Single)?
             var items = new Dictionary<string, AMItem>();
             foreach (var kv in menus)
                 foreach (var it in kv.Value)
                     items[kv.Key + AMBuilder.Sep + it.name] = it;
 
-            // Icons als PNG speichern (gleiche Bilder nur einmal)
+            // save icons as PNG (identical images only once)
             var avatarName = Regex.Replace(gen.Avatar.name, @"[^A-Za-z0-9_\- ()]+", "_").Trim();
             var assetDir = "Assets/AdvActionMenu Icons/" + (avatarName.Length > 0 ? avatarName : "Avatar");
-            var byHash = new Dictionary<string, string>(); // Hash -> Asset-Pfad
-            var iconFor = new Dictionary<string, string>(); // Eintrag -> Asset-Pfad
+            var byHash = new Dictionary<string, string>(); // hash -> asset path
+            var iconFor = new Dictionary<string, string>(); // entry -> asset path
             var skipped = 0;
             try
             {
@@ -286,7 +286,7 @@ namespace AdvActionMenu.Unity.EditorTools
                 if (f.control == "number") { e.control = Gen.NumberControl.NumberPad; changed = true; }
                 else if (f.control == "radial" && f.explicitControl) { e.control = Gen.NumberControl.Slider; changed = true; }
 
-                // automatisch erzeugte 0-1-Grenzen aus daky's Format nicht als Einstellung uebernehmen
+                // don't take over automatically generated 0-1 limits from daky's format as a setting
                 var isDefaultRange = f.min == 0f && f.max == 1f && !f.explicitControl && f.control == "radial";
                 if ((f.min != null || f.max != null) && !isDefaultRange && !f.noLimits)
                 {
